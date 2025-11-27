@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binance Futures - Trend Oscillator Bot</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 0.9em;
+        }
+        select, input {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 25px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 12px;
+            color: white;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin: 25px 0;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        .trades-table {
+            margin-top: 25px;
+            overflow-x: auto;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        tr:hover {
+            background: #f8f9fa;
+        }
+        .long { color: #22c55e; font-weight: 600; }
+        .short { color: #ef4444; font-weight: 600; }
+        .positive { color: #22c55e; }
+        .negative { color: #ef4444; }
+        #loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-size: 1.2em;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Binance Futures Bot</h1>
+        <p class="subtitle">Trend Oscillator Strategy - Backtesting con Datos Reales</p>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label>Criptomoneda:</label>
+                <select id="symbol">
+                    <option value="BTCUSDT">Bitcoin (BTC)</option>
+                    <option value="ETHUSDT">Ethereum (ETH)</option>
+                    <option value="BNBUSDT">Binance Coin (BNB)</option>
+                    <option value="XRPUSDT">Ripple (XRP)</option>
+                    <option value="ADAUSDT">Cardano (ADA)</option>
+                    <option value="DOGEUSDT">Dogecoin (DOGE)</option>
+                    <option value="SOLUSDT">Solana (SOL)</option>
+                    <option value="DOTUSDT">Polkadot (DOT)</option>
+                    <option value="LINKUSDT">Chainlink (LINK)</option>
+                    <option value="LTCUSDT">Litecoin (LTC)</option>
+                    <option value="AVAXUSDT">Avalanche (AVAX)</option>
+                    <option value="MATICUSDT">Polygon (MATIC)</option>
+                    <option value="UNIUSDT">Uniswap (UNI)</option>
+                    <option value="FTMUSDT">Fantom (FTM)</option>
+                    <option value="ATOMUSDT">Cosmos (ATOM)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Timeframe:</label>
+                <select id="timeframe">
+                    <option value="4h">4 Horas (4H)</option>
+                    <option value="1d" selected>1 Día (1D)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Apalancamiento:</label>
+                <select id="leverage">
+                    <option value="1">1x</option>
+                    <option value="2">2x</option>
+                    <option value="3">3x</option>
+                    <option value="5">5x</option>
+                    <option value="10" selected>10x</option>
+                    <option value="20">20x</option>
+                    <option value="25">25x</option>
+                    <option value="50">50x</option>
+                    <option value="75">75x</option>
+                    <option value="100">100x</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Capital Inicial (€):</label>
+                <input type="number" id="capital" value="1000" min="100" step="100">
+            </div>
+            <div class="control-group">
+                <label>Fast EMA:</label>
+                <input type="number" id="fastEMA" value="4" min="1" max="50">
+            </div>
+            <div class="control-group">
+                <label>Slow EMA:</label>
+                <input type="number" id="slowEMA" value="65" min="1" max="200">
+            </div>
+            <div class="control-group">
+                <label>Bias Multiplier:</label>
+                <input type="number" id="biasMult" value="1.062" min="0.5" max="2" step="0.001">
+            </div>
+        </div>
+
+        <button onclick="runBacktest()">▶ Ejecutar Backtest</button>
+        
+        <div id="loading">⏳ Cargando datos de Binance...</div>
+
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-label">Capital Final</div>
+                <div class="stat-value" id="finalCapital">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Ganancia/Pérdida</div>
+                <div class="stat-value" id="profit">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Rentabilidad</div>
+                <div class="stat-value" id="roi">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Operaciones</div>
+                <div class="stat-value" id="totalTrades">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Win Rate</div>
+                <div class="stat-value" id="winRate">-</div>
+            </div>
+        </div>
+
+        <div class="chart-container" id="priceChartContainer" style="display: none;">
+            anvas id="priceChart"></canvas>
+        </div>
+
+        <div class="chart-container" id="balanceChartContainer" style="display: none;">
+            anvas id="balanceChart"></canvas>
+        </div>
+
+        <div class="trades-table" id="tradesTableContainer" style="display: none;">
+            <h2 style="margin-bottom: 15px;">📊 Historial de Operaciones</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Entrada</th>
+                        <th>Salida</th>
+                        <th>Leverage</th>
+                        <th>Balance</th>
+                        <th>Ganancia</th>
+                    </tr>
+                </thead>
+                <tbody id="tradesBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let priceChart, balanceChart;
+
+        async function fetchBinanceData(symbol, interval, limit = 500) {
+            const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            return data.map(candle => ({
+                time: new Date(candle[0]),
+                close: parseFloat(candle[4])
+            }));
+        }
+
+        function calculateEMA(data, period) {
+            const k = 2 / (period + 1);
+            let ema = [data[0]];
+            for (let i = 1; i < data.length; i++) {
+                ema.push(data[i] * k + ema[i - 1] * (1 - k));
+            }
+            return ema;
+        }
+
+        function calculateOscillator(prices, fastLen, slowLen, bias) {
+            const fastEMA = calculateEMA(prices, fastLen);
+            const slowEMA = calculateEMA(prices, slowLen);
+            return fastEMA.map((fast, i) => (fast - slowEMA[i]) * bias);
+        }
+
+        async function runBacktest() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('stats').style.display = 'none';
+            document.getElementById('priceChartContainer').style.display = 'none';
+            document.getElementById('balanceChartContainer').style.display = 'none';
+            document.getElementById('tradesTableContainer').style.display = 'none';
+
+            const symbol = document.getElementById('symbol').value;
+            const timeframe = document.getElementById('timeframe').value;
+            const leverage = parseInt(document.getElementById('leverage').value);
+            const initialCapital = parseFloat(document.getElementById('capital').value);
+            const fastLen = parseInt(document.getElementById('fastEMA').value);
+            const slowLen = parseInt(document.getElementById('slowEMA').value);
+            const bias = parseFloat(document.getElementById('biasMult').value);
+
+            try {
+                const data = await fetchBinanceData(symbol, timeframe);
+                const prices = data.map(d => d.close);
+                const times = data.map(d => d.time);
+                const oscillator = calculateOscillator(prices, fastLen, slowLen, bias);
+
+                let balance = initialCapital;
+                let position = null;
+                const trades = [];
+                const balanceHistory = [initialCapital];
+                let wins = 0;
+
+                for (let i = 1; i < oscillator.length; i++) {
+                    const prevOsc = oscillator[i - 1];
+                    const currOsc = oscillator[i];
+
+                    if (!position && currOsc >= 0 && prevOsc < 0) {
+                        position = {
+                            type: 'LONG',
+                            entry: prices[i],
+                            entryTime: times[i],
+                            leverage: leverage
+                        };
+                    } else if (!position && currOsc < 0 && prevOsc >= 0) {
+                        position = {
