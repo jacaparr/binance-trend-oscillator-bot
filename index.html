@@ -6,12 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Binance Futures - Trend Oscillator Bot</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <!-- Chart.js 3.9.1 (Compatible con chartjs-chart-financial 3.3.0) -->
+    <!-- Chart.js 3.9.1 (Compatible con chartjs-chart-financial 0.2.1) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js" crossorigin="anonymous"></script>
     <script
         src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"
         crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@3.3.0/dist/chartjs-chart-financial.min.js"
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"
         crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@1.2.1/dist/chartjs-plugin-zoom.min.js"
         crossorigin="anonymous"></script>
@@ -1881,11 +1881,11 @@
 
                 // ========= UI CONTROL HANDLERS =========
                 // Handle Stop Loss Type changes
-                document.getElementById('stopLossType').addEventListener('change', function() {
+                document.getElementById('stopLossType').addEventListener('change', function () {
                     const slType = this.value;
                     const slMultiplierGroup = document.getElementById('slMultiplierGroup');
                     const slPercentGroup = document.getElementById('slPercentGroup');
-                    
+
                     if (slType === 'smart') {
                         slMultiplierGroup.style.display = 'block';
                         slPercentGroup.style.display = 'none';
@@ -1899,11 +1899,11 @@
                 });
 
                 // Handle Take Profit Type changes
-                document.getElementById('takeProfitType').addEventListener('change', function() {
+                document.getElementById('takeProfitType').addEventListener('change', function () {
                     const tpType = this.value;
                     const tpMultiplierGroup = document.getElementById('tpMultiplierGroup');
                     const tpPercentGroup = document.getElementById('tpPercentGroup');
-                    
+
                     if (tpType === 'smart') {
                         tpMultiplierGroup.style.display = 'block';
                         tpPercentGroup.style.display = 'none';
