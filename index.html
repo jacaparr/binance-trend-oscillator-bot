@@ -1002,116 +1002,118 @@
         }
 
         // Mostrar/ocultar info de multi-timeframe y multi-asset
-        document.addEventListener('DOMContentLoaded', function () {
-            const multiTFSelect = document.getElementById('multiTimeframe');
-            if (multiTFSelect) {
-                multiTFSelect.addEventListener('change', function () {
-                    const infoDiv = document.getElementById('multiTFInfo');
-                    if (this.value === 'enabled') {
-                        infoDiv.style.display = 'block';
-                    } else {
-                        infoDiv.style.display = 'none';
-                    }
-                });
-            }
+        // Los listeners se ejecutan al cargar el script (está al final del body)
+        const multiTFSelect = document.getElementById('multiTimeframe');
+        if (multiTFSelect) {
+            multiTFSelect.addEventListener('change', function () {
+                const infoDiv = document.getElementById('multiTFInfo');
+                if (this.value === 'enabled') {
+                    infoDiv.style.display = 'block';
+                } else {
+                    infoDiv.style.display = 'none';
+                }
+            });
+        }
 
-            const multiAssetSelect = document.getElementById('multiAsset');
-            if (multiAssetSelect) {
-                multiAssetSelect.addEventListener('change', function () {
-                    const infoDiv = document.getElementById('multiAssetInfo');
-                    if (this.value !== 'single') {
-                        infoDiv.style.display = 'block';
-                    } else {
-                        infoDiv.style.display = 'none';
-                    }
-                });
-            }
+        const multiAssetSelect = document.getElementById('multiAsset');
+        if (multiAssetSelect) {
+            multiAssetSelect.addEventListener('change', function () {
+                const infoDiv = document.getElementById('multiAssetInfo');
+                if (this.value !== 'single') {
+                    infoDiv.style.display = 'block';
+                } else {
+                    infoDiv.style.display = 'none';
+                }
+        });
+        }
 
-            // Actualizar título cuando cambie el símbolo
-            const symbolSelect = document.getElementById('symbol');
-            if (symbolSelect) {
-                symbolSelect.addEventListener('change', function () {
-                    updateChartSymbolTitle(this.value);
+        // Actualizar título cuando cambie el símbolo
+        const symbolSelect = document.getElementById('symbol');
+        if (symbolSelect) {
+            symbolSelect.addEventListener('change', function () {
+                updateChartSymbolTitle(this.value);
 
-                    // Si hay un backtest activo o gráficos mostrados, re-ejecutar automáticamente
-                    const statsVisible = document.getElementById('stats').style.display !== 'none';
-                    const mode = document.getElementById('tradingMode').value;
+                // Si hay un backtest activo o gráficos mostrados, re-ejecutar automáticamente
+                const statsVisible = document.getElementById('stats').style.display !== 'none';
+                const mode = document.getElementById('tradingMode').value;
 
-                    if (statsVisible && mode === 'backtest') {
-                        console.log(`🔄 Símbolo cambiado a ${this.value} - Re-ejecutando backtest...`);
-                        runBacktest();
-                    } else if (isTrading && mode === 'paper') {
-                        console.log(`🔄 Símbolo cambiado a ${this.value} - Reiniciando paper trading...`);
-                        stopTrading();
-                        setTimeout(() => startPaperTrading(), 500);
-                    }
-                });
-            }
+                if (statsVisible && mode === 'backtest') {
+                    console.log(`🔄 Símbolo cambiado a ${this.value} - Re-ejecutando backtest...`);
+                    runBacktest();
+                } else if (isTrading && mode === 'paper') {
+                    console.log(`🔄 Símbolo cambiado a ${this.value} - Reiniciando paper trading...`);
+                    stopTrading();
+                    setTimeout(() => startPaperTrading(), 500);
+                }
+            });
+        }
 
-            // También agregar listener para timeframe
-            const timeframeSelect = document.getElementById('timeframe');
-            if (timeframeSelect) {
-                timeframeSelect.addEventListener('change', function () {
-                    const statsVisible = document.getElementById('stats').style.display !== 'none';
-                    const mode = document.getElementById('tradingMode').value;
+        // También agregar listener para timeframe
+        const timeframeSelect = document.getElementById('timeframe');
+        if (timeframeSelect) {
+            timeframeSelect.addEventListener('change', function () {
+                const statsVisible = document.getElementById('stats').style.display !== 'none';
+                const mode = document.getElementById('tradingMode').value;
 
-                    if (statsVisible && mode === 'backtest') {
-                        console.log(`🔄 Timeframe cambiado a ${this.value} - Re-ejecutando backtest...`);
-                        runBacktest();
-                    } else if (isTrading && mode === 'paper') {
-                        console.log(`🔄 Timeframe cambiado a ${this.value} - Reiniciando paper trading...`);
-                        stopTrading();
-                        setTimeout(() => startPaperTrading(), 500);
-                    }
-                });
-            }
+                if (statsVisible && mode === 'backtest') {
+                    console.log(`🔄 Timeframe cambiado a ${this.value} - Re-ejecutando backtest...`);
+                    runBacktest();
+                } else if (isTrading && mode === 'paper') {
+                    console.log(`🔄 Timeframe cambiado a ${this.value} - Reiniciando paper trading...`);
+                    stopTrading();
+                    setTimeout(() => startPaperTrading(), 500);
+                }
+            });
+        }
 
-            // Listener para cambiar tipo de Stop Loss
-            const stopLossTypeSelect = document.getElementById('stopLossType');
-            if (stopLossTypeSelect) {
-                stopLossTypeSelect.addEventListener('change', function () {
-                    const slMultiplierGroup = document.getElementById('slMultiplierGroup');
-                    const slFixedGroup = document.getElementById('slFixedGroup');
+        // Listener para cambiar tipo de Stop Loss
+        const stopLossTypeSelect = document.getElementById('stopLossType');
+        if (stopLossTypeSelect) {
+            stopLossTypeSelect.addEventListener('change', function () {
+                const slMultiplierGroup = document.getElementById('slMultiplierGroup');
+                const slFixedGroup = document.getElementById('slFixedGroup');
 
-                    if (this.value === 'smart') {
-                        // Establecer fechas por defecto
-                        const endDate = new Date();
-                        const startDate = new Date();
-                        startDate.setMonth(startDate.getMonth() - 6); // 6 meses atrás por defecto
+                if (this.value === 'smart') {
+                    // Establecer fechas por defecto
+                    const endDate = new Date();
+                    const startDate = new Date();
+                    startDate.setMonth(startDate.getMonth() - 6); // 6 meses atrás por defecto
 
-                        document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
-                        document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+                    document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+                    document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
 
-                        dateRangeSelect.addEventListener('change', function () {
-                            const customDateStart = document.getElementById('customDateStart');
-                            const customDateEnd = document.getElementById('customDateEnd');
+                    dateRangeSelect.addEventListener('change', function () {
+                        const customDateStart = document.getElementById('customDateStart');
+                        const customDateEnd = document.getElementById('customDateEnd');
 
-                            if (this.value === 'custom') {
-                                if (customDateStart) customDateStart.style.display = 'flex';
-                                if (customDateEnd) customDateEnd.style.display = 'flex';
-                            } else {
-                                if (customDateStart) customDateStart.style.display = 'none';
-                                if (customDateEnd) customDateEnd.style.display = 'none';
-                            }
+                        if (this.value === 'custom') {
+                            if (customDateStart) customDateStart.style.display = 'flex';
+                            if (customDateEnd) customDateEnd.style.display = 'flex';
+                        } else {
+                            if (customDateStart) customDateStart.style.display = 'none';
+                            if (customDateEnd) customDateEnd.style.display = 'none';
+                        }
 
-                            // Re-ejecutar backtest si ya hay uno activo
-                            const statsVisible = document.getElementById('stats').style.display !== 'none';
-                            const mode = document.getElementById('tradingMode').value;
+                        // Re-ejecutar backtest si ya hay uno activo
+                        const statsVisible = document.getElementById('stats').style.display !== 'none';
+                        const mode = document.getElementById('tradingMode').value;
 
-                            if (statsVisible && mode === 'backtest') {
-                                console.log(`🔄 Rango de fechas cambiado - Re-ejecutando backtest...`);
-                                runBacktest();
-                            }
-                        });
-                    }
-                });
+                        if (statsVisible && mode === 'backtest') {
+                            console.log(`🔄 Rango de fechas cambiado - Re-ejecutando backtest...`);
+                            runBacktest();
+                        }
+                    });
+                }
+            });
+        }
+        });
 
-                async function fetchBinanceData(symbol, interval, limit = 500) {
-                    try {
-                        // Calcular fechas según el rango seleccionado
-                        const dateRange = document.getElementById('dateRange').value;
-                        let startTime = null;
-                        let endTime = Date.now();
+        async function fetchBinanceData(symbol, interval, limit = 500) {
+            try {
+                // Calcular fechas según el rango seleccionado
+                const dateRange = document.getElementById('dateRange').value;
+                let startTime = null;
+                let endTime = Date.now();
 
                         if (dateRange !== 'all') {
                             if (dateRange === 'custom') {
@@ -1249,29 +1251,29 @@
                     return atr;
                 }
 
-                async function getHigherTimeframeSignal(symbol, currentTimeframe, fastLen, slowLen, bias) {
-                    // Determinar el timeframe superior
-                    const higherTimeframe = currentTimeframe === '4h' ? '1d' : '1w';
+        async function getHigherTimeframeSignal(symbol, currentTimeframe, fastLen, slowLen, bias) {
+            // Determinar el timeframe superior
+            const higherTimeframe = currentTimeframe === '4h' ? '1d' : '1w';
 
-                    try {
-                        // Obtener datos del timeframe superior
-                        const data = await fetchBinanceData(symbol, higherTimeframe, 100);
-                        const prices = data.map(d => d.close);
-                        const oscillator = calculateOscillator(prices, fastLen, slowLen, bias);
+            try {
+                // Obtener datos del timeframe superior
+                const data = await fetchBinanceData(symbol, higherTimeframe, 100);
+                const prices = data.map(d => d.close);
+                const oscillator = calculateOscillator(prices, fastLen, slowLen, bias);
 
-                        // Obtener el último valor del oscilador
-                        const currentOsc = oscillator[oscillator.length - 1];
+                // Obtener el último valor del oscilador
+                const currentOsc = oscillator[oscillator.length - 1];
 
-                        return {
-                            timeframe: higherTimeframe,
-                            oscillator: currentOsc,
-                            trend: currentOsc >= 0 ? 'ALCISTA' : 'BAJISTA'
-                        };
-                    } catch (error) {
-                        console.error('Error obteniendo timeframe superior:', error);
-                        return null;
-                    }
-                }
+                return {
+                    timeframe: higherTimeframe,
+                    oscillator: currentOsc,
+                    trend: currentOsc >= 0 ? 'ALCISTA' : 'BAJISTA'
+                };
+            } catch (error) {
+                console.error('Error obteniendo timeframe superior:', error);
+                return null;
+            }
+        }
 
         async function startTrading() {
             console.log('🚀 startTrading() llamada');
