@@ -1288,6 +1288,9 @@
         alert('Trading real estará disponible próximamente. Requiere API Key de Binance.');
         }
         }
+    
+    // Exponer funciones globalmente para onclick
+    window.startTrading = startTrading;
 
     function stopTrading() {
         if (tradingInterval) {
@@ -1300,6 +1303,8 @@
         document.getElementById('loading').style.display = 'none';
         console.log('🛑 Trading detenido');
         }
+    
+    window.stopTrading = stopTrading;
 
     async function runBacktest() {
         console.log('📊 Iniciando runBacktest()...');
@@ -1873,17 +1878,44 @@
                 }
             }, 300);
         }
+    
+    window.applyOptimizedParams = applyOptimizedParams;
 
     function resetToDefaultParams() {
             // Parámetros originales de la estrategia
             const defaultParams = {
-            } catch (error) {
-                console.error('❌ Error en optimización:', error);
-                alert('Error durante la optimización: ' + error.message);
-                document.getElementById('optStartBtn').disabled = false;
-                document.getElementById('optStartBtn').textContent = '🚀 Iniciar Optimización';
-            }
+                fastEMA: 20,
+                slowEMA: 50,
+                bias: 0
+            };
+
+            document.getElementById('fastEMA').value = defaultParams.fastEMA;
+            document.getElementById('slowEMA').value = defaultParams.slowEMA;
+            document.getElementById('biasMult').value = defaultParams.bias;
+
+            console.log('🔄 Parámetros restaurados a valores default');
+            
+            // Mostrar confirmación visual
+            const confirmDiv = document.createElement('div');
+            confirmDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+                color: white;
+                padding: 15px 25px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(99, 102, 241, 0.3);
+                z-index: 10001;
+                font-weight: 600;
+            `;
+            confirmDiv.textContent = `🔄 Parámetros restaurados a valores default`;
+            document.body.appendChild(confirmDiv);
+
+            setTimeout(() => confirmDiv.remove(), 3000);
         }
+    
+    window.resetToDefaultParams = resetToDefaultParams;
 
         // ========= UI CONTROL HANDLERS =========
         // Handle Stop Loss Type changes
