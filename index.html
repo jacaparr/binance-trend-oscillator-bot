@@ -719,14 +719,14 @@
             </div>
         </div>
 
-        <button onclick="startTrading()" id="startBtn">▶ Iniciar Trading</button>
-        <button onclick="stopTrading()" id="stopBtn"
+        <button id="startBtn">▶ Iniciar Trading</button>
+        <button id="stopBtn"
             style="display:none; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">⏹ Detener
             Trading</button>
-        <button onclick="openOptimizationModal()"
+        <button id="optimizeBtn"
             style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">🔧 Optimizar
             Parámetros</button>
-        <button onclick="resetToDefaultParams()" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);"
+        <button id="resetBtn" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);"
             title="Restaurar parámetros originales de la estrategia">🔄 Restaurar Default</button>
 
         <div id="loading">⏳ Cargando datos de Binance...</div>
@@ -814,7 +814,7 @@
     <!-- Optimization Modal -->
     <div id="optimizationModal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeOptimizationModal()">&times;</span>
+            <span class="close" id="closeModalBtn">&times;</span>
             <h2 style="color: #667eea; margin-bottom: 20px;">🔧 Optimización de Parámetros</h2>
             <p style="color: #666; margin-bottom: 20px;">Encuentra la mejor combinación de parámetros para maximizar
                 rendimiento.</p>
@@ -868,7 +868,7 @@
                 </div>
             </div>
 
-            <button onclick="startOptimization()" id="optStartBtn" style="width: 100%; margin-top: 10px;">🚀 Iniciar
+            <button id="optStartBtn" style="width: 100%; margin-top: 10px;">🚀 Iniciar
                 Optimización</button>
 
             <div id="optProgress" style="display: none;">
@@ -1983,23 +1983,41 @@
             showErrorOverlay(ev.reason);
         });
 
-        // ========= EXPONER TODAS LAS FUNCIONES AL SCOPE GLOBAL =========
-        // Esto asegura que los onclick del HTML puedan acceder a las funciones
-        window.startTrading = startTrading;
-        window.stopTrading = stopTrading;
-        window.openOptimizationModal = openOptimizationModal;
-        window.closeOptimizationModal = closeOptimizationModal;
-        window.applyOptimizedParams = applyOptimizedParams;
-        window.resetToDefaultParams = resetToDefaultParams;
-        
-        console.log('✅ Funciones globales expuestas:', {
-            startTrading: typeof window.startTrading,
-            stopTrading: typeof window.stopTrading,
-            openOptimizationModal: typeof window.openOptimizationModal,
-            closeOptimizationModal: typeof window.closeOptimizationModal,
-            applyOptimizedParams: typeof window.applyOptimizedParams,
-            resetToDefaultParams: typeof window.resetToDefaultParams
+        // ========= CONFIGURAR EVENT LISTENERS PARA BOTONES =========
+        document.getElementById('startBtn').addEventListener('click', function() {
+            console.log('🔘 Botón Iniciar Trading clickeado');
+            startTrading();
         });
+        
+        document.getElementById('stopBtn').addEventListener('click', function() {
+            console.log('🔘 Botón Stop Trading clickeado');
+            stopTrading();
+        });
+        
+        document.getElementById('optimizeBtn').addEventListener('click', function() {
+            console.log('🔘 Botón Optimizar clickeado');
+            openOptimizationModal();
+        });
+        
+        document.getElementById('resetBtn').addEventListener('click', function() {
+            console.log('🔘 Botón Reset clickeado');
+            resetToDefaultParams();
+        });
+        
+        document.getElementById('closeModalBtn').addEventListener('click', function() {
+            console.log('🔘 Cerrar modal clickeado');
+            closeOptimizationModal();
+        });
+        
+        document.getElementById('optStartBtn').addEventListener('click', function() {
+            console.log('🔘 Iniciar optimización clickeado');
+            startOptimization();
+        });
+        
+        // Exponer funciones necesarias para botones dinámicos (applyOptimizedParams se crea dinámicamente)
+        window.applyOptimizedParams = applyOptimizedParams;
+        
+        console.log('✅ Event listeners configurados correctamente');
 
     </script>
 </body>
