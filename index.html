@@ -903,7 +903,7 @@
     </div>
 
     <script>
-        console.log('✅ Script cargado correctamente');
+        // Variables globales declaradas inmediatamente
         let priceChart;
         let tradingInterval = null;
         let isTrading = false;
@@ -915,6 +915,12 @@
             times: [],
             oscillator: []
         };
+        
+        console.log('✅ Script iniciado - esperando DOM...');
+        
+        // Esperar a que el DOM esté completamente cargado
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 DOM cargado - inicializando aplicación...');
 
         // Lista de activos para multi-asset trading
         const TOP_15_ASSETS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT',
@@ -2014,10 +2020,22 @@
             startOptimization();
         });
         
-        // Exponer funciones necesarias para botones dinámicos (applyOptimizedParams se crea dinámicamente)
+        // Exponer TODAS las funciones al scope global para acceso desde cualquier parte
+        window.startTrading = startTrading;
+        window.stopTrading = stopTrading;
+        window.runBacktest = runBacktest;
+        window.startPaperTrading = startPaperTrading;
+        window.openOptimizationModal = openOptimizationModal;
+        window.closeOptimizationModal = closeOptimizationModal;
+        window.startOptimization = startOptimization;
         window.applyOptimizedParams = applyOptimizedParams;
+        window.resetToDefaultParams = resetToDefaultParams;
         
-        console.log('✅ Event listeners configurados correctamente');
+        console.log('✅ Aplicación inicializada correctamente');
+        console.log('✅ Event listeners configurados');
+        console.log('✅ Funciones expuestas globalmente:', Object.keys(window).filter(k => k.includes('Trading') || k.includes('Optimization') || k.includes('Params') || k.includes('Backtest')));
+        
+        }); // FIN DOMContentLoaded
 
     </script>
 </body>
