@@ -1,908 +1,4 @@
-<!DOCTYPE html>
-<html lang="es">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Binance Futures - Trend Oscillator Bot</title>
-    <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <!-- Chart.js 3.9.1 (Compatible con chartjs-chart-financial 0.2.1) -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js" crossorigin="anonymous"></script>
-    <script
-        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"
-        crossorigin="anonymous"></script>
-    <script src="https://unpkg.com/chartjs-chart-financial@0.1.2/dist/chartjs-chart-financial.js"
-        crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"
-        crossorigin="anonymous"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%);
-            background-size: 400% 400%;
-            animation: gradientShift 15s ease infinite;
-            min-height: 100vh;
-            padding: 20px;
-            position: relative;
-            overflow-x: hidden;
-        }
-
-        @keyframes gradientShift {
-            0% {
-                background-position: 0% 50%;
-            }
-
-            50% {
-                background-position: 100% 50%;
-            }
-
-            100% {
-                background-position: 0% 50%;
-            }
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: radial-gradient(circle at 20% 50%, rgba(139, 92, 246, 0.3) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(59, 130, 246, 0.3) 0%, transparent 50%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .container {
-            max-width: 1500px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.98);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 40px;
-            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4),
-                0 0 1px rgba(255, 255, 255, 0.5) inset;
-            position: relative;
-            z-index: 1;
-        }
-
-        h1 {
-            text-align: center;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 10px;
-            font-size: 3em;
-            font-weight: 800;
-            letter-spacing: -1px;
-            text-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-        }
-
-        .subtitle {
-            text-align: center;
-            color: #64748b;
-            margin-bottom: 35px;
-            font-size: 1.15em;
-            font-weight: 500;
-        }
-
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 18px;
-            margin-bottom: 30px;
-            padding: 28px;
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-            border-radius: 16px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
-        }
-
-        .control-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        label {
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #334155;
-            font-size: 0.875em;
-            letter-spacing: 0.3px;
-            text-transform: uppercase;
-        }
-
-        select,
-        input {
-            padding: 12px 14px;
-            border: 2px solid #e2e8f0;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            background: white;
-            color: #1e293b;
-        }
-
-        select:hover,
-        input:hover {
-            border-color: #cbd5e1;
-        }
-
-        select:focus,
-        input:focus {
-            outline: none;
-            border-color: #6366f1;
-            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1),
-                0 4px 12px rgba(99, 102, 241, 0.15);
-            transform: translateY(-1px);
-        }
-
-        button {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            color: white;
-            padding: 16px 32px;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            margin: 8px 4px;
-            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
-            position: relative;
-            overflow: hidden;
-        }
-
-        button::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
-            transition: left 0.5s;
-        }
-
-        button:hover::before {
-            left: 100%;
-        }
-
-        button:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4);
-        }
-
-        button:active {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            padding: 28px;
-            border-radius: 16px;
-            color: white;
-            text-align: center;
-            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25),
-                0 0 1px rgba(255, 255, 255, 0.3) inset;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-            transition: transform 0.6s;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 32px rgba(99, 102, 241, 0.35);
-        }
-
-        .stat-card:hover::before {
-            transform: translate(-25%, -25%);
-        }
-
-        .stat-value {
-            font-size: 2.2em;
-            font-weight: 800;
-            margin-top: 12px;
-            position: relative;
-            z-index: 1;
-            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .stat-label {
-            font-size: 0.875em;
-            opacity: 0.95;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            position: relative;
-            z-index: 1;
-        }
-
-        .chart-container {
-            position: relative;
-            height: 450px;
-            margin: 30px 0;
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            border-radius: 16px;
-            padding: 28px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08),
-                0 0 1px rgba(99, 102, 241, 0.2) inset;
-            border: 1px solid #e2e8f0;
-            transition: all 0.3s;
-        }
-
-        .chart-container:hover {
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
-            border-color: #cbd5e1;
-        }
-
-        .trades-table {
-            margin-top: 30px;
-            overflow-x: auto;
-            border-radius: 16px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-            border: 1px solid #e2e8f0;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-        }
-
-        th {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            color: white;
-            padding: 18px 20px;
-            text-align: left;
-            font-weight: 700;
-            font-size: 0.875em;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
-        }
-
-        td {
-            padding: 16px 20px;
-            border-bottom: 1px solid #f1f5f9;
-            font-size: 0.95em;
-            color: #334155;
-        }
-
-        tr:hover {
-            background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
-        }
-
-        tbody tr {
-            transition: all 0.2s;
-        }
-
-        tbody tr:hover {
-            transform: scale(1.01);
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
-        }
-
-        .asset-clickable {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer;
-        }
-
-        .asset-clickable:hover {
-            color: #6366f1 !important;
-            text-decoration: underline;
-            transform: scale(1.08);
-            text-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-        }
-
-        #assetsMonitorBody tr {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        #assetsMonitorBody tr:hover {
-            transform: translateX(8px) scale(1.01);
-            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25);
-            background: linear-gradient(90deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
-        }
-
-        .long {
-            color: #10b981;
-            font-weight: 700;
-            text-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
-        }
-
-        .short {
-            color: #ef4444;
-            font-weight: 700;
-            text-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);
-        }
-
-        .positive {
-            color: #10b981;
-            font-weight: 600;
-        }
-
-        .negative {
-            color: #ef4444;
-            font-weight: 600;
-        }
-
-        #loading {
-            text-align: center;
-            padding: 30px;
-            color: #6366f1;
-            font-size: 1.3em;
-            font-weight: 600;
-            display: none;
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-            border-radius: 16px;
-            margin: 20px 0;
-            animation: pulse 2s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.7;
-            }
-        }
-
-        .mode-badge {
-            display: inline-block;
-            padding: 8px 18px;
-            border-radius: 24px;
-            font-size: 0.875em;
-            font-weight: 700;
-            margin-left: 12px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-        }
-
-        .mode-backtest {
-            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-            color: #1e40af;
-            border: 1px solid #93c5fd;
-        }
-
-        .mode-paper {
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-            color: #065f46;
-            border: 1px solid #6ee7b7;
-        }
-
-        .mode-live {
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            color: #991b1b;
-            border: 1px solid #fca5a5;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(15, 23, 42, 0.7);
-            backdrop-filter: blur(8px);
-            animation: fadeIn 0.3s;
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-
-            to {
-                opacity: 1;
-            }
-        }
-
-        .modal-content {
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            margin: 3% auto;
-            padding: 40px;
-            border-radius: 24px;
-            width: 92%;
-            max-width: 900px;
-            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5),
-                0 0 1px rgba(99, 102, 241, 0.3) inset;
-            animation: slideDown 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            max-height: 90vh;
-            overflow-y: auto;
-            border: 1px solid rgba(226, 232, 240, 0.8);
-        }
-
-        @keyframes slideDown {
-            from {
-                transform: translateY(-60px) scale(0.95);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateY(0) scale(1);
-                opacity: 1;
-            }
-        }
-
-        .close {
-            color: #94a3b8;
-            float: right;
-            font-size: 32px;
-            font-weight: bold;
-            cursor: pointer;
-            line-height: 1;
-            transition: all 0.3s;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 12px;
-        }
-
-        .close:hover {
-            color: #1e293b;
-            background: #f1f5f9;
-            transform: rotate(90deg);
-        }
-
-        .opt-controls {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 20px 0;
-        }
-
-        .progress-container {
-            width: 100%;
-            background: #e2e8f0;
-            border-radius: 12px;
-            overflow: hidden;
-            margin: 24px 0;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) inset;
-        }
-
-        .progress-bar {
-            height: 36px;
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%);
-            background-size: 200% 200%;
-            animation: gradientMove 2s ease infinite;
-            width: 0%;
-            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 700;
-            font-size: 0.9em;
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
-        }
-
-        @keyframes gradientMove {
-            0% {
-                background-position: 0% 50%;
-            }
-
-            50% {
-                background-position: 100% 50%;
-            }
-
-            100% {
-                background-position: 0% 50%;
-            }
-        }
-
-        .results-table {
-            margin-top: 20px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .opt-result-row {
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .opt-result-row:hover {
-            background: #f0f0f0 !important;
-        }
-
-        .opt-result-row.selected {
-            background: #e0f2fe !important;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="container">
-        <h1>🚀 Binance Futures Bot</h1>
-        <p class="subtitle">Trend Oscillator Strategy - Backtesting con Datos Reales de Binance API</p>
-        <div
-            style="background: #e0f2fe; padding: 10px 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; color: #0369a1; font-size: 0.9em;">
-            ✅ <strong>Datos 100% Reales:</strong> Los precios provienen directamente de la API pública de Binance.
-            Última actualización en tiempo real.
-        </div>
-
-        <div id="multiTFInfo"
-            style="background: #fef3c7; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; color: #92400e; font-size: 0.9em; display: none;">
-            <strong>🎯 Confirmación Multi-Timeframe Activada</strong><br>
-            <small>
-                • Si usas <strong>4H</strong>, solo opera cuando <strong>1D</strong> confirma la tendencia<br>
-                • Si usas <strong>1D</strong>, solo opera cuando <strong>1W</strong> confirma la tendencia<br>
-                • Menos operaciones pero más precisas y seguras 📈
-            </small>
-        </div>
-
-        <div id="multiAssetInfo"
-            style="background: #ddd6fe; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; color: #5b21b6; font-size: 0.9em; display: none;">
-            <strong>🚀 Trading Multi-Asset Activado</strong><br>
-            <small>
-                • El bot monitorea múltiples criptomonedas simultáneamente<br>
-                • Opera con la primera que dé señal de entrada<br>
-            </small>
-        </div>
-
-        <div class="controls">
-            <div class="control-group">
-                <label>Criptomoneda:</label>
-                <select id="symbol">
-                    <option value="BTCUSDT">Bitcoin (BTC)</option>
-                    <option value="ETHUSDT">Ethereum (ETH)</option>
-                    <option value="BNBUSDT">Binance Coin (BNB)</option>
-                    <option value="XRPUSDT">Ripple (XRP)</option>
-                    <option value="ADAUSDT">Cardano (ADA)</option>
-                    <option value="DOGEUSDT">Dogecoin (DOGE)</option>
-                    <option value="SOLUSDT">Solana (SOL)</option>
-                    <option value="DOTUSDT">Polkadot (DOT)</option>
-                    <option value="LINKUSDT">Chainlink (LINK)</option>
-                    <option value="LTCUSDT">Litecoin (LTC)</option>
-                    <option value="AVAXUSDT">Avalanche (AVAX)</option>
-                    <option value="MATICUSDT">Polygon (MATIC)</option>
-                    <option value="UNIUSDT">Uniswap (UNI)</option>
-                    <option value="FTMUSDT">Fantom (FTM)</option>
-                    <option value="ATOMUSDT">Cosmos (ATOM)</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label>Timeframe:</label>
-                <select id="timeframe">
-                    <option value="4h" selected>4 Horas (4H)</option>
-                    <option value="1d">1 Día (1D)</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label>Rango de fechas:</label>
-                <select id="dateRange">
-                    <option value="all">📅 Todo el historial</option>
-                    <option value="1m">📆 Último mes</option>
-                    <option value="3m">📆 Últimos 3 meses</option>
-                    <option value="6m" selected>📆 Últimos 6 meses</option>
-                    <option value="1y">📆 Último año</option>
-                    <option value="2y">📆 Últimos 2 años</option>
-                    <option value="custom">🗓️ Personalizado</option>
-                </select>
-            </div>
-            <div class="control-group" id="customDateStart" style="display:none;">
-                <label>Fecha Inicio:</label>
-                <input type="date" id="startDate">
-            </div>
-            <div class="control-group" id="customDateEnd" style="display:none;">
-                <label>Fecha Fin:</label>
-                <input type="date" id="endDate">
-            </div>
-            <div class="control-group">
-                <label>Apalancamiento:</label>
-                <select id="leverage">
-                    <option value="1">1x</option>
-                    <option value="2">2x</option>
-                    <option value="3">3x</option>
-                    <option value="5">5x</option>
-                    <option value="10" selected>10x</option>
-                    <option value="20">20x</option>
-                    <option value="25">25x</option>
-                    <option value="50">50x</option>
-                    <option value="75">75x</option>
-                    <option value="100">100x</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label>Capital Inicial (€):</label>
-                <input type="number" id="capital" value="1000" min="100" step="100">
-            </div>
-            <div class="control-group">
-                <label>Fast EMA:</label>
-                <input type="number" id="fastEMA" value="4" min="1" max="50">
-            </div>
-            <div class="control-group">
-                <label>Slow EMA:</label>
-                <input type="number" id="slowEMA" value="65" min="1" max="200">
-            </div>
-            <div class="control-group">
-                <label>Bias Multiplier:</label>
-                <input type="number" id="biasMult" value="1.062" min="0.5" max="2" step="0.001">
-            </div>
-            <div class="control-group">
-                <label>Tipo de Stop Loss:</label>
-                <select id="stopLossType">
-                    <option value="smart" selected>🧠 Inteligente (ATR)</option>
-                    <option value="fixed">📍 Fijo (%)</option>
-                    <option value="none">❌ Desactivado</option>
-                </select>
-            </div>
-            <div class="control-group" id="slMultiplierGroup">
-                <label>SL Multiplicador ATR:</label>
-                <input type="number" id="slMultiplier" value="2" min="0.5" max="5" step="0.5"
-                    title="Multiplicador del ATR para Stop Loss">
-            </div>
-            <div class="control-group" id="slPercentGroup" style="display:none;">
-                <label>Stop Loss (%):</label>
-                <input type="number" id="stopLoss" value="1" min="0.1" max="10" step="0.1">
-            </div>
-
-            <div class="control-group">
-                <label>Tipo de Take Profit:</label>
-                <select id="takeProfitType">
-                    <option value="fixed" selected>📍 Fijo (%)</option>
-                    <option value="smart">🧠 Inteligente (ATR)</option>
-                    <option value="none">❌ Desactivado</option>
-                </select>
-            </div>
-            <div class="control-group" id="tpMultiplierGroup" style="display:none;">
-                <label>TP Multiplicador ATR:</label>
-                <input type="number" id="tpMultiplier" value="2" min="0.5" max="10" step="0.5">
-            </div>
-            <div class="control-group" id="tpPercentGroup">
-                <label>Take Profit (%):</label>
-                <input type="number" id="takeProfit" value="1.5" min="0.1" max="20" step="0.1">
-            </div>
-
-            <div class="control-group">
-                <label>Modo de Trading:</label>
-                <select id="tradingMode">
-                    <option value="backtest" selected>📊 Backtest (Histórico)</option>
-                    <option value="paper">💰 Paper Trading (Virtual)</option>
-                    <option value="live" disabled>🔴 Trading Real (Próximamente)</option>
-                </select>
-            </div>
-
-            <div class="control-group">
-                <label>Confirmación Multi-Timeframe:</label>
-                <select id="multiTimeframe">
-                    <option value="none">❌ Desactivado</option>
-                    <option value="enabled" selected>✅ Confirmar con timeframe superior</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label>Modo Multi-Asset:</label>
-                <select id="multiAsset">
-                    <option value="single">📊 Activo Único</option>
-                    <option value="multi">🎯 Múltiples Activos (Top 15)</option>
-                    <option value="all">🚀 Todos los Activos (30+)</option>
-                </select>
-            </div>
-        </div>
-
-        <button id="startBtn">▶ Iniciar Trading</button>
-        <button id="stopBtn"
-            style="display:none; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">⏹ Detener
-            Trading</button>
-        <button id="optimizeBtn"
-            style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">🔧 Optimizar
-            Parámetros</button>
-        <button id="resetBtn" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);"
-            title="Restaurar parámetros originales de la estrategia">🔄 Restaurar Default</button>
-
-        <div id="loading">⏳ Cargando datos de Binance...</div>
-
-        <div class="stats" id="stats" style="display: none;">
-            <div class="stat-card">
-                <div class="stat-label">Capital Final</div>
-                <div class="stat-value" id="finalCapital">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Ganancia/Pérdida</div>
-                <div class="stat-value" id="profit">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Rentabilidad</div>
-                <div class="stat-value" id="roi">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Total Operaciones</div>
-                <div class="stat-value" id="totalTrades">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Win Rate</div>
-                <div class="stat-value" id="winRate">-</div>
-            </div>
-        </div>
-
-        <div class="chart-container" id="priceChartContainer" style="display: none;">
-            <div
-                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 15px; border-radius: 10px 10px 0 0; margin: -20px -20px 15px -20px;">
-                <h3 style="color: white; margin: 0; font-size: 1.3em; text-align: center;" id="chartSymbolTitle">📊
-                    Bitcoin (BTC)</h3>
-            </div>
-            <canvas id="priceChart"></canvas>
-        </div>
-
-        <div class="trades-table" id="assetsMonitorContainer" style="display: none; margin-bottom: 25px;">
-            <h2 style="margin-bottom: 15px;">🔍 Monitor de Activos en Tiempo Real</h2>
-            <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 0.9em;">
-                <strong>Leyenda:</strong>
-                <span style="color: #dc2626;">● Muy cerca SHORT</span> |
-                <span style="color: #f59e0b;">● Cerca SHORT</span> |
-                <span style="color: #666;">● Neutral</span> |
-                <span style="color: #84cc16;">● Cerca LONG</span> |
-                <span style="color: #16a34a;">● Muy cerca LONG</span>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Estado</th>
-                        <th>Activo</th>
-                        <th>Precio</th>
-                        <th>Oscilador</th>
-                        <th>Tendencia</th>
-                        <th>Distancia a Señal</th>
-                        <th>Probabilidad</th>
-                    </tr>
-                </thead>
-                <tbody id="assetsMonitorBody"></tbody>
-            </table>
-        </div>
-
-        <div class="trades-table" id="tradesTableContainer" style="display: none;">
-            <h2 style="margin-bottom: 15px;">📊 Historial de Operaciones</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Fecha Entrada</th>
-                        <th>Fecha Salida</th>
-                        <th>Tipo</th>
-                        <th>Precio Entrada</th>
-                        <th>Precio Salida</th>
-                        <th>Leverage</th>
-                        <th>Motivo Cierre</th>
-                        <th>Balance</th>
-                        <th>Ganancia</th>
-                    </tr>
-                </thead>
-                <tbody id="tradesBody"></tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Optimization Modal -->
-    <div id="optimizationModal" class="modal">
-        <div class="modal-content">
-            <span class="close" id="closeModalBtn">&times;</span>
-            <h2 style="color: #667eea; margin-bottom: 20px;">🔧 Optimización de Parámetros</h2>
-            <p style="color: #666; margin-bottom: 20px;">Encuentra la mejor combinación de parámetros para maximizar
-                rendimiento.</p>
-
-            <div class="opt-controls">
-                <div class="control-group">
-                    <label>Fast EMA - Mínimo:</label>
-                    <input type="number" id="optFastMin" value="2" min="1" max="20">
-                </div>
-                <div class="control-group">
-                    <label>Fast EMA - Máximo:</label>
-                    <input type="number" id="optFastMax" value="10" min="1" max="20">
-                </div>
-                <div class="control-group">
-                    <label>Slow EMA - Mínimo:</label>
-                    <input type="number" id="optSlowMin" value="40" min="20" max="150">
-                </div>
-                <div class="control-group">
-                    <label>Slow EMA - Máximo:</label>
-                    <input type="number" id="optSlowMax" value="100" min="20" max="150">
-                </div>
-                <div class="control-group">
-                    <label>Bias - Mínimo:</label>
-                    <input type="number" id="optBiasMin" value="0.95" min="0.5" max="2" step="0.01">
-                </div>
-                <div class="control-group">
-                    <label>Bias - Máximo:</label>
-                    <input type="number" id="optBiasMax" value="1.15" min="0.5" max="2" step="0.01">
-                </div>
-                <div class="control-group">
-                    <label>Paso Fast EMA:</label>
-                    <input type="number" id="optFastStep" value="2" min="1" max="5">
-                </div>
-                <div class="control-group">
-                    <label>Paso Slow EMA:</label>
-                    <input type="number" id="optSlowStep" value="10" min="5" max="20">
-                </div>
-                <div class="control-group">
-                    <label>Paso Bias:</label>
-                    <input type="number" id="optBiasStep" value="0.05" min="0.01" max="0.1" step="0.01">
-                </div>
-                <div class="control-group">
-                    <label>Objetivo de Optimización:</label>
-                    <select id="optTarget">
-                        <option value="roi">ROI %</option>
-                        <option value="profit">Ganancia Total</option>
-                        <option value="profitFactor">Profit Factor</option>
-                        <option value="winRate">Win Rate</option>
-                        <option value="sharpe">Ratio Sharpe</option>
-                    </select>
-                </div>
-            </div>
-
-            <button id="optStartBtn" style="width: 100%; margin-top: 10px;">🚀 Iniciar
-                Optimización</button>
-
-            <div id="optProgress" style="display: none;">
-                <div class="progress-container">
-                    <div class="progress-bar" id="optProgressBar">0%</div>
-                </div>
-                <p id="optStatus" style="text-align: center; color: #666; margin-top: 10px;"></p>
-            </div>
-
-            <div id="optResults" style="display: none;">
-                <h3 style="color: #667eea; margin: 20px 0 10px 0;">📊 Top 10 Mejores Configuraciones</h3>
-                <div class="results-table">
-                    <table id="optResultsTable" style="font-size: 0.9em;">
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th>Fast EMA</th>
-                                <th>Slow EMA</th>
-                                <th>Bias</th>
-                                <th>ROI %</th>
-                                <th>Trades</th>
-                                <th>Win Rate</th>
-                                <th>Profit Factor</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody id="optResultsBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
+﻿
         // Variables globales declaradas inmediatamente
         let priceChart;
         let tradingInterval = null;
@@ -916,11 +12,11 @@
             oscillator: []
         };
         
-        console.log('✅ Script iniciado - esperando DOM...');
+        console.log('âœ… Script iniciado - esperando DOM...');
         
-        // Esperar a que el DOM esté completamente cargado
+        // Esperar a que el DOM estÃ© completamente cargado
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 DOM cargado - inicializando aplicación...');
+            console.log('ðŸš€ DOM cargado - inicializando aplicaciÃ³n...');
 
         // Lista de activos para multi-asset trading
         const TOP_15_ASSETS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT',
@@ -935,37 +31,37 @@
 
         // Nombres completos de las criptomonedas
         const CRYPTO_NAMES = {
-            'BTCUSDT': '📊 Bitcoin (BTC)',
-            'ETHUSDT': '📊 Ethereum (ETH)',
-            'BNBUSDT': '📊 Binance Coin (BNB)',
-            'XRPUSDT': '📊 Ripple (XRP)',
-            'ADAUSDT': '📊 Cardano (ADA)',
-            'DOGEUSDT': '📊 Dogecoin (DOGE)',
-            'SOLUSDT': '📊 Solana (SOL)',
-            'DOTUSDT': '📊 Polkadot (DOT)',
-            'LINKUSDT': '📊 Chainlink (LINK)',
-            'LTCUSDT': '📊 Litecoin (LTC)',
-            'AVAXUSDT': '📊 Avalanche (AVAX)',
-            'MATICUSDT': '📊 Polygon (MATIC)',
-            'UNIUSDT': '📊 Uniswap (UNI)',
-            'FTMUSDT': '📊 Fantom (FTM)',
-            'ATOMUSDT': '📊 Cosmos (ATOM)',
-            'TRXUSDT': '📊 Tron (TRX)',
-            'ETCUSDT': '📊 Ethereum Classic (ETC)',
-            'XLMUSDT': '📊 Stellar (XLM)',
-            'VETUSDT': '📊 VeChain (VET)',
-            'ICPUSDT': '📊 Internet Computer (ICP)',
-            'FILUSDT': '📊 Filecoin (FIL)',
-            'NEARUSDT': '📊 NEAR Protocol (NEAR)',
-            'ALGOUSDT': '📊 Algorand (ALGO)',
-            'APTUSDT': '📊 Aptos (APT)',
-            'ARBUSDT': '📊 Arbitrum (ARB)',
-            'OPUSDT': '📊 Optimism (OP)',
-            'INJUSDT': '📊 Injective (INJ)',
-            'LDOUSDT': '📊 Lido DAO (LDO)',
-            'STXUSDT': '📊 Stacks (STX)',
-            'SEIUSDT': '📊 Sei (SEI)',
-            'SUIUSDT': '📊 Sui (SUI)'
+            'BTCUSDT': 'ðŸ“Š Bitcoin (BTC)',
+            'ETHUSDT': 'ðŸ“Š Ethereum (ETH)',
+            'BNBUSDT': 'ðŸ“Š Binance Coin (BNB)',
+            'XRPUSDT': 'ðŸ“Š Ripple (XRP)',
+            'ADAUSDT': 'ðŸ“Š Cardano (ADA)',
+            'DOGEUSDT': 'ðŸ“Š Dogecoin (DOGE)',
+            'SOLUSDT': 'ðŸ“Š Solana (SOL)',
+            'DOTUSDT': 'ðŸ“Š Polkadot (DOT)',
+            'LINKUSDT': 'ðŸ“Š Chainlink (LINK)',
+            'LTCUSDT': 'ðŸ“Š Litecoin (LTC)',
+            'AVAXUSDT': 'ðŸ“Š Avalanche (AVAX)',
+            'MATICUSDT': 'ðŸ“Š Polygon (MATIC)',
+            'UNIUSDT': 'ðŸ“Š Uniswap (UNI)',
+            'FTMUSDT': 'ðŸ“Š Fantom (FTM)',
+            'ATOMUSDT': 'ðŸ“Š Cosmos (ATOM)',
+            'TRXUSDT': 'ðŸ“Š Tron (TRX)',
+            'ETCUSDT': 'ðŸ“Š Ethereum Classic (ETC)',
+            'XLMUSDT': 'ðŸ“Š Stellar (XLM)',
+            'VETUSDT': 'ðŸ“Š VeChain (VET)',
+            'ICPUSDT': 'ðŸ“Š Internet Computer (ICP)',
+            'FILUSDT': 'ðŸ“Š Filecoin (FIL)',
+            'NEARUSDT': 'ðŸ“Š NEAR Protocol (NEAR)',
+            'ALGOUSDT': 'ðŸ“Š Algorand (ALGO)',
+            'APTUSDT': 'ðŸ“Š Aptos (APT)',
+            'ARBUSDT': 'ðŸ“Š Arbitrum (ARB)',
+            'OPUSDT': 'ðŸ“Š Optimism (OP)',
+            'INJUSDT': 'ðŸ“Š Injective (INJ)',
+            'LDOUSDT': 'ðŸ“Š Lido DAO (LDO)',
+            'STXUSDT': 'ðŸ“Š Stacks (STX)',
+            'SEIUSDT': 'ðŸ“Š Sei (SEI)',
+            'SUIUSDT': 'ðŸ“Š Sui (SUI)'
         };
 
     function getDateRangeText() {
@@ -988,11 +84,11 @@
         }
 
         const rangeLabels = {
-        '1m': 'Último mes',
-        '3m': 'Últimos 3 meses',
-        '6m': 'Últimos 6 meses',
-        '1y': 'Último año',
-        '2y': 'Últimos 2 años'
+        '1m': 'Ãšltimo mes',
+        '3m': 'Ãšltimos 3 meses',
+        '6m': 'Ãšltimos 6 meses',
+        '1y': 'Ãšltimo aÃ±o',
+        '2y': 'Ãšltimos 2 aÃ±os'
         };
 
         return ` (${rangeLabels[dateRange]})`;
@@ -1001,14 +97,14 @@
     function updateChartSymbolTitle(symbol) {
         const titleElement = document.getElementById('chartSymbolTitle');
         if (titleElement) {
-        const cryptoName = CRYPTO_NAMES[symbol] || `📊 ${symbol.replace('USDT', '')}`;
+        const cryptoName = CRYPTO_NAMES[symbol] || `ðŸ“Š ${symbol.replace('USDT', '')}`;
         const dateRange = getDateRangeText();
         titleElement.textContent = cryptoName + dateRange;
         }
         }
 
         // Mostrar/ocultar info de multi-timeframe y multi-asset
-        // Los listeners se ejecutan al cargar el script (está al final del body)
+        // Los listeners se ejecutan al cargar el script (estÃ¡ al final del body)
         const multiTFSelect = document.getElementById('multiTimeframe');
         if (multiTFSelect) {
         multiTFSelect.addEventListener('change', function () {
@@ -1033,28 +129,28 @@
         });
         }
 
-        // Actualizar título cuando cambie el símbolo
+        // Actualizar tÃ­tulo cuando cambie el sÃ­mbolo
         const symbolSelect = document.getElementById('symbol');
         if (symbolSelect) {
         symbolSelect.addEventListener('change', function () {
             updateChartSymbolTitle(this.value);
 
-            // Si hay un backtest activo o gráficos mostrados, re-ejecutar automáticamente
+            // Si hay un backtest activo o grÃ¡ficos mostrados, re-ejecutar automÃ¡ticamente
             const statsVisible = document.getElementById('stats').style.display !== 'none';
             const mode = document.getElementById('tradingMode').value;
 
             if (statsVisible && mode === 'backtest') {
-                console.log(`🔄 Símbolo cambiado a ${this.value} - Re-ejecutando backtest...`);
+                console.log(`ðŸ”„ SÃ­mbolo cambiado a ${this.value} - Re-ejecutando backtest...`);
                 runBacktest();
             } else if (isTrading && mode === 'paper') {
-                console.log(`🔄 Símbolo cambiado a ${this.value} - Reiniciando paper trading...`);
+                console.log(`ðŸ”„ SÃ­mbolo cambiado a ${this.value} - Reiniciando paper trading...`);
                 stopTrading();
                 setTimeout(() => startPaperTrading(), 500);
             }
         });
         }
 
-        // También agregar listener para timeframe
+        // TambiÃ©n agregar listener para timeframe
         const timeframeSelect = document.getElementById('timeframe');
         if (timeframeSelect) {
         timeframeSelect.addEventListener('change', function () {
@@ -1062,10 +158,10 @@
             const mode = document.getElementById('tradingMode').value;
 
             if (statsVisible && mode === 'backtest') {
-                console.log(`🔄 Timeframe cambiado a ${this.value} - Re-ejecutando backtest...`);
+                console.log(`ðŸ”„ Timeframe cambiado a ${this.value} - Re-ejecutando backtest...`);
                 runBacktest();
             } else if (isTrading && mode === 'paper') {
-                console.log(`🔄 Timeframe cambiado a ${this.value} - Reiniciando paper trading...`);
+                console.log(`ðŸ”„ Timeframe cambiado a ${this.value} - Reiniciando paper trading...`);
                 stopTrading();
                 setTimeout(() => startPaperTrading(), 500);
             }
@@ -1083,7 +179,7 @@
                 // Establecer fechas por defecto
                 const endDate = new Date();
                 const startDate = new Date();
-                startDate.setMonth(startDate.getMonth() - 6); // 6 meses atrás por defecto
+                startDate.setMonth(startDate.getMonth() - 6); // 6 meses atrÃ¡s por defecto
 
                 document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
                 document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
@@ -1105,7 +201,7 @@
                     const mode = document.getElementById('tradingMode').value;
 
                     if (statsVisible && mode === 'backtest') {
-                        console.log(`🔄 Rango de fechas cambiado - Re-ejecutando backtest...`);
+                        console.log(`ðŸ”„ Rango de fechas cambiado - Re-ejecutando backtest...`);
                         runBacktest();
                     }
                 });
@@ -1114,7 +210,7 @@
 
     async function fetchBinanceData(symbol, interval, limit = 500) {
         try {
-        // Calcular fechas según el rango seleccionado
+        // Calcular fechas segÃºn el rango seleccionado
         const dateRange = document.getElementById('dateRange').value;
         let startTime = null;
         let endTime = Date.now();
@@ -1127,7 +223,7 @@
                         if (startDateInput && endDateInput) {
                             startTime = new Date(startDateInput).getTime();
                             endTime = new Date(endDateInput).getTime();
-                            endTime = endTime + (24 * 60 * 60 * 1000) - 1; // Fin del día
+                            endTime = endTime + (24 * 60 * 60 * 1000) - 1; // Fin del dÃ­a
                         }
                     } else {
                         // Rangos predefinidos
@@ -1154,7 +250,7 @@
                     }
                 }
 
-                // Intentar con la API pública de Binance
+                // Intentar con la API pÃºblica de Binance
                 let url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
 
                 if (startTime) {
@@ -1234,7 +330,7 @@
                 tr.push(trueRange);
             }
 
-            // Calcular ATR como promedio móvil del True Range
+            // Calcular ATR como promedio mÃ³vil del True Range
             const atr = [];
             let sum = 0;
 
@@ -1265,7 +361,7 @@
         const prices = data.map(d => d.close);
         const oscillator = calculateOscillator(prices, fastLen, slowLen, bias);
 
-        // Obtener el último valor del oscilador
+        // Obtener el Ãºltimo valor del oscilador
         const currentOsc = oscillator[oscillator.length - 1];
 
         return {
@@ -1280,16 +376,16 @@
         }
 
     async function startTrading() {
-        console.log('🚀 startTrading() llamada');
+        console.log('ðŸš€ startTrading() llamada');
         const mode = document.getElementById('tradingMode').value;
-        console.log(`📊 Modo seleccionado: ${mode}`);
+        console.log(`ðŸ“Š Modo seleccionado: ${mode}`);
 
         if (mode === 'backtest') {
         await runBacktest();
         } else if (mode === 'paper') {
         await startPaperTrading();
         } else if (mode === 'live') {
-        alert('Trading real estará disponible próximamente. Requiere API Key de Binance.');
+        alert('Trading real estarÃ¡ disponible prÃ³ximamente. Requiere API Key de Binance.');
         }
         }
 
@@ -1302,11 +398,11 @@
         document.getElementById('startBtn').style.display = 'inline-block';
         document.getElementById('stopBtn').style.display = 'none';
         document.getElementById('loading').style.display = 'none';
-        console.log('🛑 Trading detenido');
+        console.log('ðŸ›‘ Trading detenido');
         }
 
     async function runBacktest() {
-        console.log('📊 Iniciando runBacktest()...');
+        console.log('ðŸ“Š Iniciando runBacktest()...');
         document.getElementById('loading').style.display = 'block';
         document.getElementById('stats').style.display = 'none';
         document.getElementById('priceChartContainer').style.display = 'none';
@@ -1339,7 +435,7 @@
                 let atrValues = [];
                 if (stopLossType === 'smart') {
                     atrValues = calculateATR(data, 14);
-                    console.log(`🧠 Stop Loss Inteligente activado - ATR multiplicador: ${slMultiplier}x`);
+                    console.log(`ðŸ§  Stop Loss Inteligente activado - ATR multiplicador: ${slMultiplier}x`);
                 }
 
                 let balance = initialCapital;
@@ -1349,19 +445,19 @@
                 let wins = 0;
                 const commission = 0.0004; // 0.04% Binance Futures fee
 
-                // Contador de señales para debug
+                // Contador de seÃ±ales para debug
                 let longSignals = 0;
                 let shortSignals = 0;
                 let filteredSignals = 0;
 
-                // Obtener señal del timeframe superior si está activado
+                // Obtener seÃ±al del timeframe superior si estÃ¡ activado
                 const multiTF = document.getElementById('multiTimeframe').value;
                 let higherTFSignal = null;
 
                 if (multiTF === 'enabled') {
                     higherTFSignal = await getHigherTimeframeSignal(symbol, timeframe, fastLen, slowLen, bias);
                     if (higherTFSignal) {
-                        console.log(`📈 Tendencia ${higherTFSignal.timeframe.toUpperCase()}: ${higherTFSignal.trend} (Osc: ${higherTFSignal.oscillator.toFixed(4)})`);
+                        console.log(`ðŸ“ˆ Tendencia ${higherTFSignal.timeframe.toUpperCase()}: ${higherTFSignal.trend} (Osc: ${higherTFSignal.oscillator.toFixed(4)})`);
                     }
                 }
 
@@ -1369,17 +465,17 @@
                     const prevOsc = oscillator[i - 1];
                     const currOsc = oscillator[i];
 
-                    // Abrir posición LONG
+                    // Abrir posiciÃ³n LONG
                     if (!position && currOsc >= 0 && prevOsc < 0) {
                         longSignals++;
 
-                        // Verificar confirmación del timeframe superior
+                        // Verificar confirmaciÃ³n del timeframe superior
                         let confirmed = true;
                         if (multiTF === 'enabled' && higherTFSignal) {
                             confirmed = higherTFSignal.trend === 'ALCISTA';
                             if (!confirmed) {
                                 filteredSignals++;
-                                console.log(`🚫 Señal LONG filtrada - Tendencia ${higherTFSignal.timeframe} es BAJISTA`);
+                                console.log(`ðŸš« SeÃ±al LONG filtrada - Tendencia ${higherTFSignal.timeframe} es BAJISTA`);
                             }
                         }
 
@@ -1392,17 +488,17 @@
                             };
                         }
                     }
-                    // Abrir posición SHORT
+                    // Abrir posiciÃ³n SHORT
                     else if (!position && currOsc < 0 && prevOsc >= 0) {
                         shortSignals++;
 
-                        // Verificar confirmación del timeframe superior
+                        // Verificar confirmaciÃ³n del timeframe superior
                         let confirmed = true;
                         if (multiTF === 'enabled' && higherTFSignal) {
                             confirmed = higherTFSignal.trend === 'BAJISTA';
                             if (!confirmed) {
                                 filteredSignals++;
-                                console.log(`🚫 Señal SHORT filtrada - Tendencia ${higherTFSignal.timeframe} es ALCISTA`);
+                                console.log(`ðŸš« SeÃ±al SHORT filtrada - Tendencia ${higherTFSignal.timeframe} es ALCISTA`);
                             }
                         }
 
@@ -1415,7 +511,7 @@
                             };
                         }
                     }
-                    // Verificar Stop Loss y Take Profit si hay posición abierta
+                    // Verificar Stop Loss y Take Profit si hay posiciÃ³n abierta
                     if (position) {
                         let shouldClose = false;
                         let exitReason = 'Signal';
@@ -1432,28 +528,28 @@
 
                             if (priceChangePercent <= -atrDistance) {
                                 shouldClose = true;
-                                exitReason = `🧠 SL Inteligente (${atrDistance.toFixed(2)}%)`;
+                                exitReason = `ðŸ§  SL Inteligente (${atrDistance.toFixed(2)}%)`;
                             }
                         } else if (stopLossType === 'fixed' && stopLossPercent > 0 && priceChangePercent <= -stopLossPercent) {
                             shouldClose = true;
-                            exitReason = '🛑 Stop Loss';
+                            exitReason = 'ðŸ›‘ Stop Loss';
                         }
                         // Verificar Take Profit
                         else if (takeProfitPercent > 0 && priceChangePercent >= takeProfitPercent) {
                             shouldClose = true;
-                            exitReason = '🎯 Take Profit';
+                            exitReason = 'ðŸŽ¯ Take Profit';
                         }
-                        // Verificar señal de salida por oscilador
+                        // Verificar seÃ±al de salida por oscilador
                         else if (position.type === 'LONG' && currOsc < 0 && prevOsc >= 0) {
                             shouldClose = true;
-                            exitReason = '📉 Señal';
+                            exitReason = 'ðŸ“‰ SeÃ±al';
                         }
                         else if (position.type === 'SHORT' && currOsc >= 0 && prevOsc < 0) {
                             shouldClose = true;
-                            exitReason = '📈 Señal';
+                            exitReason = 'ðŸ“ˆ SeÃ±al';
                         }
 
-                        // Cerrar posición si se cumple alguna condición
+                        // Cerrar posiciÃ³n si se cumple alguna condiciÃ³n
                         if (shouldClose) {
                             const priceChange = position.type === 'LONG'
                                 ? (prices[i] - position.entry) / position.entry
@@ -1487,22 +583,22 @@
                 }
 
                 // Log de debug
-                console.log(`Señales LONG detectadas: ${longSignals}`);
-                console.log(`Señales SHORT detectadas: ${shortSignals}`);
+                console.log(`SeÃ±ales LONG detectadas: ${longSignals}`);
+                console.log(`SeÃ±ales SHORT detectadas: ${shortSignals}`);
                 if (multiTF === 'enabled') {
-                    console.log(`Señales filtradas por multi-timeframe: ${filteredSignals}`);
+                    console.log(`SeÃ±ales filtradas por multi-timeframe: ${filteredSignals}`);
                     console.log(`Tasa de filtrado: ${((filteredSignals / (longSignals + shortSignals)) * 100).toFixed(1)}%`);
                 }
                 console.log(`Total de trades ejecutados: ${trades.length}`);
                 console.log(`Rango del oscilador: ${Math.min(...oscillator).toFixed(2)} a ${Math.max(...oscillator).toFixed(2)}`);
 
-                // Calcular métricas
+                // Calcular mÃ©tricas
                 const finalCapital = balance;
                 const totalProfit = finalCapital - initialCapital;
                 const roi = ((finalCapital - initialCapital) / initialCapital) * 100;
                 const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
 
-                // Calcular drawdown máximo
+                // Calcular drawdown mÃ¡ximo
                 let maxDrawdown = 0;
                 let peak = balanceHistory[0];
                 for (let bal of balanceHistory) {
@@ -1516,16 +612,16 @@
                 const losingTrades = trades.filter(t => t.profit <= 0);
                 const totalWins = winningTrades.reduce((sum, t) => sum + t.profit, 0);
                 const totalLosses = Math.abs(losingTrades.reduce((sum, t) => sum + t.profit, 0));
-                const profitFactor = totalLosses > 0 ? (totalWins / totalLosses).toFixed(2) : '∞';
+                const profitFactor = totalLosses > 0 ? (totalWins / totalLosses).toFixed(2) : 'âˆž';
 
-                // Actualizar estadísticas
-                document.getElementById('finalCapital').textContent = `€${finalCapital.toFixed(2)}`;
-                // Agregar métricas adicionales
+                // Actualizar estadÃ­sticas
+                document.getElementById('finalCapital').textContent = `â‚¬${finalCapital.toFixed(2)}`;
+                // Agregar mÃ©tricas adicionales
                 const statsContainer = document.getElementById('stats');
                 if (!document.getElementById('maxDrawdown')) {
                     statsContainer.innerHTML += `
                 <div class="stat-card">
-                    <div class="stat-label">Drawdown Máx</div>
+                    <div class="stat-label">Drawdown MÃ¡x</div>
                     <div class="stat-value" id="maxDrawdown">-</div>
                 </div>
                 <div class="stat-card">
@@ -1533,11 +629,11 @@
                     <div class="stat-value" id="profitFactor">-</div>
                 </div>
                 <div class="stat-card" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">
-                    <div class="stat-label">Señales LONG</div>
+                    <div class="stat-label">SeÃ±ales LONG</div>
                     <div class="stat-value" id="longSignals">-</div>
                 </div>
                 <div class="stat-card" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
-                    <div class="stat-label">Señales SHORT</div>
+                    <div class="stat-label">SeÃ±ales SHORT</div>
                     <div class="stat-value" id="shortSignals">-</div>
                 </div>
             `;
@@ -1548,17 +644,17 @@
                 document.getElementById('longSignals').textContent = longSignals;
                 document.getElementById('shortSignals').textContent = shortSignals;
 
-                // Agregar info de multi-timeframe si está activo
+                // Agregar info de multi-timeframe si estÃ¡ activo
                 if (multiTF === 'enabled' && !document.getElementById('filteredSignals')) {
                     statsContainer.innerHTML += `
                 <div class="stat-card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
-                    <div class="stat-label">🚫 Filtradas (Multi-TF)</div>
+                    <div class="stat-label">ðŸš« Filtradas (Multi-TF)</div>
                     <div class="stat-value" id="filteredSignals">-</div>
                 </div>
             `;
                 }
 
-                // Renderizar gráfico y tabla
+                // Renderizar grÃ¡fico y tabla
                 renderPriceChart(data, trades, oscillator, fastLen, slowLen, bias);
                 renderTradesTable(trades);
 
@@ -1605,17 +701,17 @@
             const target = document.getElementById('optTarget').value;
 
             if (fastMin >= fastMax || slowMin >= slowMax || biasMin >= biasMax) {
-                alert('⚠️ Los valores mínimos deben ser menores que los máximos');
+                alert('âš ï¸ Los valores mÃ­nimos deben ser menores que los mÃ¡ximos');
                 return;
             }
 
             if (slowMin <= fastMax) {
-                alert('⚠️ Slow EMA mínimo debe ser mayor que Fast EMA máximo');
+                alert('âš ï¸ Slow EMA mÃ­nimo debe ser mayor que Fast EMA mÃ¡ximo');
                 return;
             }
 
             document.getElementById('optStartBtn').disabled = true;
-            document.getElementById('optStartBtn').textContent = '⏳ Optimizando...';
+            document.getElementById('optStartBtn').textContent = 'â³ Optimizando...';
             document.getElementById('optProgress').style.display = 'block';
             document.getElementById('optResults').style.display = 'none';
 
@@ -1625,8 +721,8 @@
             const currentCapital = parseFloat(document.getElementById('capital').value);
             const currentLeverage = parseFloat(document.getElementById('leverage').value);
 
-            console.log('🔧 Iniciando optimización de parámetros...');
-            console.log(`   Símbolo: ${currentSymbol}, Timeframe: ${currentTimeframe} `);
+            console.log('ðŸ”§ Iniciando optimizaciÃ³n de parÃ¡metros...');
+            console.log(`   SÃ­mbolo: ${currentSymbol}, Timeframe: ${currentTimeframe} `);
             console.log(`   Fast EMA: ${fastMin} -${fastMax} (paso ${fastStep})`);
             console.log(`   Slow EMA: ${slowMin} -${slowMax} (paso ${slowStep})`);
             console.log(`   Bias: ${biasMin} -${biasMax} (paso ${biasStep})`);
@@ -1678,7 +774,7 @@
                     }
                 }
 
-                console.log(`✅ Optimización completada: ${results.length} resultados`);
+                console.log(`âœ… OptimizaciÃ³n completada: ${results.length} resultados`);
 
                 // Sort results by target metric
                 results.sort((a, b) => {
@@ -1697,15 +793,15 @@
 
                 // Re-enable button
                 document.getElementById('optStartBtn').disabled = false;
-                document.getElementById('optStartBtn').textContent = '🚀 Iniciar Optimización';
+                document.getElementById('optStartBtn').textContent = 'ðŸš€ Iniciar OptimizaciÃ³n';
                 document.getElementById('optProgress').style.display = 'none';
                 document.getElementById('optResults').style.display = 'block';
 
             } catch (error) {
-                console.error('❌ Error en optimización:', error);
-                alert('Error durante la optimización: ' + error.message);
+                console.error('âŒ Error en optimizaciÃ³n:', error);
+                alert('Error durante la optimizaciÃ³n: ' + error.message);
                 document.getElementById('optStartBtn').disabled = false;
-                document.getElementById('optStartBtn').textContent = '🚀 Iniciar Optimización';
+                document.getElementById('optStartBtn').textContent = 'ðŸš€ Iniciar OptimizaciÃ³n';
             }
         }
 
@@ -1838,7 +934,7 @@
             <td>
                 <button onclick="applyOptimizedParams(${result.fast}, ${result.slow}, ${result.bias})" 
                         style="padding: 5px 10px; font-size: 0.85em; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);">
-                    ✅ Aplicar
+                    âœ… Aplicar
                 </button>
             </td>
         `;
@@ -1846,9 +942,9 @@
                 tbody.appendChild(row);
             });
 
-            console.log('📊 Top 5 configuraciones:');
+            console.log('ðŸ“Š Top 5 configuraciones:');
             results.slice(0, 5).forEach((r, i) => {
-                console.log(`   ${i + 1}.Fast = ${r.fast}, Slow = ${r.slow}, Bias = ${r.bias.toFixed(3)} → ROI: ${r.roi.toFixed(2)} %, Trades: ${r.totalTrades}, WinRate: ${r.winRate.toFixed(1)} % `);
+                console.log(`   ${i + 1}.Fast = ${r.fast}, Slow = ${r.slow}, Bias = ${r.bias.toFixed(3)} â†’ ROI: ${r.roi.toFixed(2)} %, Trades: ${r.totalTrades}, WinRate: ${r.winRate.toFixed(1)} % `);
             });
         }
 
@@ -1861,13 +957,13 @@
             // Close modal
             closeOptimizationModal();
 
-            // Ejecutar backtest automáticamente con los nuevos parámetros
+            // Ejecutar backtest automÃ¡ticamente con los nuevos parÃ¡metros
             const mode = document.getElementById('tradingMode').value;
 
-            console.log(`✅ Parámetros optimizados aplicados: Fast = ${fast}, Slow = ${slow}, Bias = ${bias}`);
-            console.log(`🔄 Re - ejecutando ${mode === 'backtest' ? 'backtest' : 'paper trading'} con nuevos parámetros...`);
+            console.log(`âœ… ParÃ¡metros optimizados aplicados: Fast = ${fast}, Slow = ${slow}, Bias = ${bias}`);
+            console.log(`ðŸ”„ Re - ejecutando ${mode === 'backtest' ? 'backtest' : 'paper trading'} con nuevos parÃ¡metros...`);
 
-            // Pequeño delay para que el usuario vea el cambio en los inputs
+            // PequeÃ±o delay para que el usuario vea el cambio en los inputs
             setTimeout(() => {
                 if (mode === 'backtest') {
                     runBacktest();
@@ -1879,7 +975,7 @@
         }
 
     function resetToDefaultParams() {
-            // Parámetros originales de la estrategia
+            // ParÃ¡metros originales de la estrategia
             const defaultParams = {
                 fastEMA: 20,
                 slowEMA: 50,
@@ -1890,9 +986,9 @@
             document.getElementById('slowEMA').value = defaultParams.slowEMA;
             document.getElementById('biasMult').value = defaultParams.bias;
 
-            console.log('🔄 Parámetros restaurados a valores default');
+            console.log('ðŸ”„ ParÃ¡metros restaurados a valores default');
             
-            // Mostrar confirmación visual
+            // Mostrar confirmaciÃ³n visual
             const confirmDiv = document.createElement('div');
             confirmDiv.style.cssText = `
                 position: fixed;
@@ -1906,7 +1002,7 @@
                 z-index: 10001;
                 font-weight: 600;
             `;
-            confirmDiv.textContent = `🔄 Parámetros restaurados a valores default`;
+            confirmDiv.textContent = `ðŸ”„ ParÃ¡metros restaurados a valores default`;
             document.body.appendChild(confirmDiv);
 
             setTimeout(() => confirmDiv.remove(), 3000);
@@ -1989,32 +1085,32 @@
 
         // ========= CONFIGURAR EVENT LISTENERS PARA BOTONES =========
         document.getElementById('startBtn').addEventListener('click', function() {
-            console.log('🔘 Botón Iniciar Trading clickeado');
+            console.log('ðŸ”˜ BotÃ³n Iniciar Trading clickeado');
             startTrading();
         });
         
         document.getElementById('stopBtn').addEventListener('click', function() {
-            console.log('🔘 Botón Stop Trading clickeado');
+            console.log('ðŸ”˜ BotÃ³n Stop Trading clickeado');
             stopTrading();
         });
         
         document.getElementById('optimizeBtn').addEventListener('click', function() {
-            console.log('🔘 Botón Optimizar clickeado');
+            console.log('ðŸ”˜ BotÃ³n Optimizar clickeado');
             openOptimizationModal();
         });
         
         document.getElementById('resetBtn').addEventListener('click', function() {
-            console.log('🔘 Botón Reset clickeado');
+            console.log('ðŸ”˜ BotÃ³n Reset clickeado');
             resetToDefaultParams();
         });
         
         document.getElementById('closeModalBtn').addEventListener('click', function() {
-            console.log('🔘 Cerrar modal clickeado');
+            console.log('ðŸ”˜ Cerrar modal clickeado');
             closeOptimizationModal();
         });
         
         document.getElementById('optStartBtn').addEventListener('click', function() {
-            console.log('🔘 Iniciar optimización clickeado');
+            console.log('ðŸ”˜ Iniciar optimizaciÃ³n clickeado');
             startOptimization();
         });
         
@@ -2029,14 +1125,10 @@
         window.applyOptimizedParams = applyOptimizedParams;
         window.resetToDefaultParams = resetToDefaultParams;
         
-        console.log('✅ Aplicación inicializada correctamente');
-        console.log('✅ Event listeners configurados');
-        console.log('✅ Funciones expuestas globalmente:', Object.keys(window).filter(k => k.includes('Trading') || k.includes('Optimization') || k.includes('Params') || k.includes('Backtest')));
+        console.log('âœ… AplicaciÃ³n inicializada correctamente');
+        console.log('âœ… Event listeners configurados');
+        console.log('âœ… Funciones expuestas globalmente:', Object.keys(window).filter(k => k.includes('Trading') || k.includes('Optimization') || k.includes('Params') || k.includes('Backtest')));
         
         }); // FIN DOMContentLoaded
 
-    </script>
-</body>
-
-</html>
-
+    
