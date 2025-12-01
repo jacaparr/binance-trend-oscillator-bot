@@ -1288,9 +1288,6 @@
         alert('Trading real estará disponible próximamente. Requiere API Key de Binance.');
         }
         }
-    
-    // Exponer funciones globalmente para onclick
-    window.startTrading = startTrading;
 
     function stopTrading() {
         if (tradingInterval) {
@@ -1303,8 +1300,6 @@
         document.getElementById('loading').style.display = 'none';
         console.log('🛑 Trading detenido');
         }
-    
-    window.stopTrading = stopTrading;
 
     async function runBacktest() {
         console.log('📊 Iniciando runBacktest()...');
@@ -1878,8 +1873,6 @@
                 }
             }, 300);
         }
-    
-    window.applyOptimizedParams = applyOptimizedParams;
 
     function resetToDefaultParams() {
             // Parámetros originales de la estrategia
@@ -1914,8 +1907,6 @@
 
             setTimeout(() => confirmDiv.remove(), 3000);
         }
-    
-    window.resetToDefaultParams = resetToDefaultParams;
 
         // ========= UI CONTROL HANDLERS =========
         // Handle Stop Loss Type changes
@@ -1990,6 +1981,24 @@
         });
         window.addEventListener('unhandledrejection', ev => {
             showErrorOverlay(ev.reason);
+        });
+
+        // ========= EXPONER TODAS LAS FUNCIONES AL SCOPE GLOBAL =========
+        // Esto asegura que los onclick del HTML puedan acceder a las funciones
+        window.startTrading = startTrading;
+        window.stopTrading = stopTrading;
+        window.openOptimizationModal = openOptimizationModal;
+        window.closeOptimizationModal = closeOptimizationModal;
+        window.applyOptimizedParams = applyOptimizedParams;
+        window.resetToDefaultParams = resetToDefaultParams;
+        
+        console.log('✅ Funciones globales expuestas:', {
+            startTrading: typeof window.startTrading,
+            stopTrading: typeof window.stopTrading,
+            openOptimizationModal: typeof window.openOptimizationModal,
+            closeOptimizationModal: typeof window.closeOptimizationModal,
+            applyOptimizedParams: typeof window.applyOptimizedParams,
+            resetToDefaultParams: typeof window.resetToDefaultParams
         });
 
     </script>
