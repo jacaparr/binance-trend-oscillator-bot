@@ -903,6 +903,7 @@
     </div>
 
     <script>
+        console.log('✅ Script cargado correctamente');
         let priceChart;
         let tradingInterval = null;
         let isTrading = false;
@@ -1272,17 +1273,19 @@
                     }
                 }
 
-                async function startTrading() {
-                    const mode = document.getElementById('tradingMode').value;
+        async function startTrading() {
+            console.log('🚀 startTrading() llamada');
+            const mode = document.getElementById('tradingMode').value;
+            console.log(`📊 Modo seleccionado: ${mode}`);
 
-                    if (mode === 'backtest') {
-                        runBacktest();
-                    } else if (mode === 'paper') {
-                        startPaperTrading();
-                    } else if (mode === 'live') {
-                        alert('Trading real estará disponible próximamente. Requiere API Key de Binance.');
-                    }
-                }
+            if (mode === 'backtest') {
+                await runBacktest();
+            } else if (mode === 'paper') {
+                await startPaperTrading();
+            } else if (mode === 'live') {
+                alert('Trading real estará disponible próximamente. Requiere API Key de Binance.');
+            }
+        }
 
                 function stopTrading() {
                     if (tradingInterval) {
@@ -1296,11 +1299,12 @@
                     console.log('🛑 Trading detenido');
                 }
 
-                async function runBacktest() {
-                    document.getElementById('loading').style.display = 'block';
-                    document.getElementById('stats').style.display = 'none';
-                    document.getElementById('priceChartContainer').style.display = 'none';
-                    document.getElementById('tradesTableContainer').style.display = 'none';
+        async function runBacktest() {
+            console.log('📊 Iniciando runBacktest()...');
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('stats').style.display = 'none';
+            document.getElementById('priceChartContainer').style.display = 'none';
+            document.getElementById('tradesTableContainer').style.display = 'none';
 
                     const symbol = document.getElementById('symbol').value;
                     const timeframe = document.getElementById('timeframe').value;
