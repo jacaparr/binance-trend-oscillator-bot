@@ -1,0 +1,342 @@
+﻿// ==================================================================
+// BINANCE TREND OSCILLATOR BOT - COM PLETE JAVASCRIPT
+// ==================================================================
+
+// Lista de activos para multi-asset trading
+const TOP_15_ASSETS = [
+    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT',
+    'DOGEUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT', 'LTCUSDT',
+    'AVAXUSDT', 'MATICUSDT', 'UNIUSDT', 'FTMUSDT', 'ATOMUSDT'
+];
+
+const ALL_ASSETS = [
+    ...TOP_15_ASSETS,
+    'ETCUSDT', 'XLMUSDT', 'ALGOUSDT', 'VETUSDT', 'ICPUSDT',
+    'FILUSDT', 'TRXUSDT', 'EOSUSDT', 'AAVEUSDT', 'MKRUSDT',
+    'THETAUSDT', 'XTZUSDT', 'NEARUSDT', 'SANDUSDT', 'MANAUSDT'
+];
+
+const CRYPTO_NAMES = {
+    'BTCUSDT': '📊 Bitcoin (BTC)',
+    'ETHUSDT': '📊 Ethereum (ETH)',
+    'BNBUSDT': '📊 Binance Coin (BNB)',
+    'XRPUSDT': '📊 Ripple (XRP)',
+    'ADAUSDT': '📊 Cardano (ADA)',
+    'DO GEUSDT': '📊 Dogecoin (DOGE)',
+    'SOLUSDT': '📊 Solana (SOL)',
+    'DOTUSDT': '📊 Polkadot (DOT)',
+    'LINKUSDT': '📊 Chainlink (LINK)',
+    'LTCUSDT': '📊 Litecoin (LTC)',
+    'AVAXUSDT': '📊 Avalanche (AVAX)',
+    'MATICUSDT': '📊 Polygon (MATIC)',
+    'UNIUSDT': '📊 Uniswap (UNI)',
+    'FTMUSDT': '📊 Fantom (FTM)',
+    'ATOMUSDT': '📊 Cosmos (ATOM)'
+};
+
+// ==========================================
+// UTILITY FUNCTIONS
+// ==========================================
+function calculateEMA(prices, length) {
+    const k = 2 / (length + 1);
+    let ema = [prices[0]];
+    for (let i = 1; i < prices.length; i++) {
+        ema.push(prices[i] * k + ema[i - 1] * (1 - k));
+    }
+    return ema;
+}
+
+function calculateOscillator(prices, fastLen, slowLen, bias) {
+    const fastEMA = calculateEMA(prices, fastLen);
+    const slowEMA = calculateEMA(prices, slowLen);
+    return fastEMA.map((fast, i) => (fast - slowEMA[i]) * bias);
+}
+
+function calculateATR(highs, lows, closes, period = 14) {
+    const tr = [];
+    for (let i = 1; i < closes.length; i++) {
+        const h_l = highs[i] - lows[i];
+        const h_cp = Math.abs(highs[i] - closes[i - 1]);
+        const l_cp = Math.abs(lows[i] - closes[i - 1]);
+        tr.push(Math.max(h_l, h_cp, l_cp));
+    }
+    const atr = [tr[0] || 0];
+    if (tr.length >= period) {
+        const initialATR = tr.slice(0, period).reduce((a, b) => a + b, 0) / period;
+        atr.length = 0;
+        atr.push(initialATR);
+        for (let i = period; i < tr.length; i++) {
+            atr.push((atr[atr.length - 1] * (period - 1) + tr[i]) / period);
+        }
+    }
+    while (atr.length < tr.length) atr.unshift(0);
+    return atr;
+}
+
+// ==========================================
+// DATA FETCHING
+// ==========================================
+async function fetchBinanceData(symbol, interval, limit = 500) {
+    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        return data.map(candle => ({
+            time: candle[0],
+            open: parseFloat(candle[1]),
+            high: parseFloat(candle[2]),
+            low: parseFloat(candle[3]),
+            close: parseFloat(candle[4]),
+            volume: parseFloat(candle[5])
+        }));
+    } catch (error) {
+        console.error('Error fetching Binance data:', error);
+        throw error;
+    }
+}
+
+// ==========================================
+// BACKTESTING LOGIC
+// ==========================================
+async function runBacktest() {
+    console.log('🚀 Iniciando Backtest...');
+    try {
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('stats').style.display = 'none';
+
+        const symbol = document.getElementById('symbol').value;
+        const timeframe = document.getElementById('timeframe').value;
+        const fastLen = parseInt(document.getElementById('fastEMA').value);
+        const slowLen = parseInt(document.getElementById('slowEMA').value);
+        const bias = parseFloat(document.getElementById('biasMult').value);
+        const capital = parseFloat(document.getElementById('capital').value);
+        const leverage = parseInt(document.getElementById('leverage').value);
+
+        const data = await fetchBinanceData(symbol, timeframe, 1000);
+
+        if (!data || data.length < slowLen + 10) {
+            throw new Error('Datos insuficientes');
+        }
+
+        const prices = data.map(d => d.close);
+        const highs = data.map(d => d.high);
+        const lows = data.map(d => d.low);
+        const oscillator = calculateOscillator(prices, fastLen, slowLen, bias);
+        const atr = calculateATR(highs, lows, prices, 14);
+
+        let balance = capital;
+        let position = null;
+        let trades = [];
+        let wins = 0;
+
+        const slType = document.getElementById('stopLossType').value;
+        const slMultiplier = parseFloat(document.getElementById('slMultiplier').value);
+        const slPercent = parseFloat(document.getElementById('stopLoss').value);
+        const tpType = document.getElementById('takeProfitType').value;
+        const tpMultiplier = parseFloat(document.getElementById('tpMultiplier').value);
+        const tpPercent = parseFloat(document.getElementById('takeProfit').value);
+
+        for (let i = slowLen; i < data.length; i++) {
+            const currentPrice = data[i].close;
+            const time = new Date(data[i].time);
+            const oscVal = oscillator[i];
+            const prevOsc = oscillator[i - 1];
+            const currentATR = atr[i];
+
+            // Check exit conditions
+            if (position) {
+                let closeReason = null;
+
+                // Stop Loss/Take Profit
+                if (position.type === 'LONG') {
+                    if (currentPrice <= position.sl) closeReason = 'Stop Loss';
+                    if (currentPrice >= position.tp) closeReason = 'Take Profit';
+                } else {
+                    if (currentPrice >= position.sl) closeReason = 'Stop Loss';
+                    if (currentPrice <= position.tp) closeReason = 'Take Profit';
+                }
+
+                // Signal reversal
+                if (position.type === 'LONG' && oscVal < 0) closeReason = 'Señal Contraria';
+                if (position.type === 'SHORT' && oscVal >= 0) closeReason = 'Señal Contraria';
+
+                // Close position
+                if (closeReason) {
+                    const pnl = position.type === 'LONG'
+                        ? ((currentPrice - position.entry) / position.entry) * 100 * leverage
+                        : ((position.entry - currentPrice) / position.entry) * 100 * leverage;
+
+                    balance += (balance * pnl / 100);
+                    if (pnl > 0) wins++;
+
+                    trades.push({
+                        type: position.type,
+                        entry: position.entry,
+                        exit: currentPrice,
+                        entryTime: position.entryTime,
+                        exitTime: time,
+                        pnl: pnl,
+                        closeReason: closeReason
+                    });
+
+                    position = null;
+                }
+            }
+
+            // Entry signals
+            if (!position) {
+                if (prevOsc < 0 && oscVal >= 0) {
+                    // LONG signal
+                    let sl, tp;
+                    if (slType === 'smart') {
+                        sl = currentPrice - (currentATR / currentPrice * 100 * slMultiplier * currentPrice / 100);
+                    } else if (slType === 'fixed') {
+                        sl = currentPrice * (1 - slPercent / 100);
+                    } else {
+                        sl = 0;
+                    }
+
+                    if (tpType === 'smart') {
+                        tp = currentPrice + (currentATR / currentPrice * 100 * tpMultiplier * currentPrice / 100);
+                    } else if (tpType === 'fixed') {
+                        tp = currentPrice * (1 + tpPercent / 100);
+                    } else {
+                        tp = 999999999;
+                    }
+
+                    position = { type: 'LONG', entry: currentPrice, sl, tp, entryTime: time };
+                } else if (prevOsc >= 0 && oscVal < 0) {
+                    // SHORT signal
+                    let sl, tp;
+                    if (slType === 'smart') {
+                        sl = currentPrice + (currentATR / currentPrice * 100 * slMultiplier * currentPrice / 100);
+                    } else if (slType === 'fixed') {
+                        sl = currentPrice * (1 + slPercent / 100);
+                    } else {
+                        sl = 999999999;
+                    }
+
+                    if (tpType === 'smart') {
+                        tp = currentPrice - (currentATR / currentPrice * 100 * tpMultiplier * currentPrice / 100);
+                    } else if (tpType === 'fixed') {
+                        tp = currentPrice * (1 - tpPercent / 100);
+                    } else {
+                        tp = 0;
+                    }
+
+                    position = { type: 'SHORT', entry: currentPrice, sl, tp, entryTime: time };
+                }
+            }
+        }
+
+        // Display results
+        const profit = balance - capital;
+        const roi = (profit / capital) * 100;
+        const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+
+        document.getElementById('finalCapital').textContent = `€${balance.toFixed(2)}`;
+        document.getElementById('profit').textContent = `€${profit.toFixed(2)}`;
+        document.getElementById('roi').textContent = `${roi.toFixed(2)}%`;
+        document.getElementById('totalTrades').textContent = trades.length;
+        document.getElementById('winRate').textContent = `${winRate.toFixed(2)}%`;
+
+        document.getElementById('stats').style.display = 'grid';
+
+        console.log('✅ Backtest completado');
+    } catch (error) {
+        console.error('❌ Error en backtest:', error);
+        alert('Error: ' + error.message);
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+    }
+}
+
+// ==========================================
+// CONTROL FUNCTIONS
+// ==========================================
+function startTrading() {
+    console.log('▶ Start Trading clicked');
+    const mode = document.getElementById('tradingMode').value;
+    if (mode === 'backtest') {
+        runBacktest();
+    } else {
+        alert('Solo Backtest está disponible actualmente');
+    }
+}
+
+function stopTrading() {
+    console.log('⏹ Stop Trading');
+    alert('Trading detenido');
+}
+
+function openOptimizationModal() {
+    alert('🔧 Optimización próximamente');
+}
+
+function resetToDefaultParams() {
+    document.getElementById('fastEMA').value = '4';
+    document.getElementById('slowEMA').value = '65';
+    document.getElementById('biasMult').value = '1.062';
+    document.getElementById('leverage').value = '10';
+    document.getElementById('capital').value = '1000';
+    document.getElementById('stopLossType').value = 'smart';
+    document.getElementById('slMultiplier').value = '2';
+    document.getElementById('takeProfitType').value = 'fixed';
+    document.getElementById('takeProfit').value = '1.5';
+    alert('✅ Parámetros restaurados');
+}
+
+// ==========================================
+// INITIALIZATION
+// ==========================================
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('✅ Bot inicializado');
+
+    // Attach event listeners
+    const startBtn = document.getElementById('startBtn');
+    if (startBtn) {
+        startBtn.addEventListener('click', startTrading);
+    }
+
+    const stopBtn = document.getElementById('stopBtn');
+    if (stopBtn) {
+        stopBtn.addEventListener('click', stopTrading);
+    }
+
+    const optimizeBtn = document.getElementById('optimizeBtn');
+    if (optimizeBtn) {
+        optimizeBtn.addEventListener('click', openOptimizationModal);
+    }
+
+    const resetBtn = document.getElementById('resetBtn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', resetToDefaultParams);
+    }
+
+    // SL/TP type toggles
+    const slTypeSelect = document.getElementById('stopLossType');
+    if (slTypeSelect) {
+        slTypeSelect.addEventListener('change', (e) => {
+            const slMultGroup = document.getElementById('slMultiplierGroup');
+            const slPercGroup = document.getElementById('slPercentGroup');
+            if (slMultGroup && slPercGroup) {
+                slMultGroup.style.display = e.target.value === 'smart' ? 'block' : 'none';
+                slPercGroup.style.display = e.target.value === 'fixed' ? 'block' : 'none';
+            }
+        });
+    }
+
+    const tpTypeSelect = document.getElementById('takeProfitType');
+    if (tpTypeSelect) {
+        tpTypeSelect.addEventListener('change', (e) => {
+            const tpMultGroup = document.getElementById('tpMultiplierGroup');
+            const tpPercGroup = document.getElementById('tpPercentGroup');
+            if (tpMultGroup && tpPercGroup) {
+                tpMultGroup.style.display = e.target.value === 'smart' ? 'block' : 'none';
+                tpPercGroup.style.display = e.target.value === 'fixed' ? 'block' : 'none';
+            }
+        });
+    }
+});
+
+console.log('📊 Binance Trend Oscillator Bot - Script loaded successfully');

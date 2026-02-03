@@ -1,0 +1,6 @@
+// Patch to add visualization calls to runBacktest
+// Find: document.getElementById('stats').style.display = 'grid';
+// Add after it:
+
+renderPriceChart(data, trades);
+renderTradesTable(trades);
