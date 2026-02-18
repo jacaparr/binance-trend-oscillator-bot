@@ -107,29 +107,69 @@ async function startPaperTrading() {
                 const volSMA = calculateSMA(paperVolumeHistory, 20);
                 const currentVolSMA = volSMA[volSMA.length - 1];
 
+                const ema200 = calculateEMA(paperPriceHistory, 200);
+                const currentEMA200 = ema200[ema200.length - 1];
+
+                const uiMode = document.querySelector('.container').classList.contains('simple-mode') ? 'simple' : 'advanced';
+
                 // 1. CHECK EXIT CONDITIONS
                 if (paperPosition) {
                     let closeReason = null;
 
                     // A. Stop Loss / Take Profit
-                    if (paperPosition.type === 'LONG') {
-                        if (currentPrice <= paperPosition.sl) closeReason = 'Stop Loss';
-                        if (currentPrice >= paperPosition.tp) closeReason = 'Take Profit';
-                        if (oscVal < -oscThreshold) closeReason = 'Señal Contraria';
-                    } else {
-                        if (currentPrice >= paperPosition.sl) closeReason = 'Stop Loss';
-                        if (currentPrice <= paperPosition.tp) closeReason = 'Take Profit';
-                        if (oscVal > oscThreshold) closeReason = 'Señal Contraria';
+                    // A. Stop Loss / Take Profit / Partial Exits
+                    const priceChangePercent = paperPosition.type === 'LONG'
+                        ? ((currentPrice - paperPosition.entry) / paperPosition.entry) * 100
+                        : ((paperPosition.entry - currentPrice) / paperPosition.entry) * 100;
+
+                    // 1. Lógica Adaptativa (Modo Simple)
+                    if (uiMode === 'simple') {
+                        const atrDistanceTP1 = (paperPosition.atrAtEntry / paperPosition.entry) * 100 * 1.5;
+                        const atrDistanceTP2 = (paperPosition.atrAtEntry / paperPosition.entry) * 100 * 3.5;
+                        const atrDistanceSL = (paperPosition.atrAtEntry / paperPosition.entry) * 100 * 2.5;
+
+                        // TP Parcial (1.5x ATR)
+                        if (!paperPosition.isPartialClosed && priceChangePercent >= atrDistanceTP1) {
+                            const netPnl = (atrDistanceTP1 * leverage) - (0.08 * leverage);
+                            paperBalance += (paperBalance / 2 * netPnl / 100);
+                            paperPosition.isPartialClosed = true;
+                            paperPosition.sl = paperPosition.entry; // Move SL to entry
+                            console.log(`🌗 PAPER: Salida Parcial 1.5x ATR - SL movido a Break Even`);
+                        }
+
+                        // Exit Conditions
+                        if (paperPosition.isPartialClosed && priceChangePercent <= 0) {
+                            closeReason = '🛡️ Break Even (Tras TP1)';
+                        } else if (!paperPosition.isPartialClosed && priceChangePercent <= -atrDistanceSL) {
+                            closeReason = '🛑 Auto-SL (Auto-Piloto)';
+                        } else if (priceChangePercent >= atrDistanceTP2) {
+                            closeReason = '🎯 Auto-TP Final (Auto-Piloto)';
+                        }
+                    }
+                    // 2. Lógica Manual (Modo Avanzado)
+                    else {
+                        if (paperPosition.type === 'LONG') {
+                            if (currentPrice <= paperPosition.sl) closeReason = 'Stop Loss';
+                            if (currentPrice >= paperPosition.tp) closeReason = 'Take Profit';
+                        } else {
+                            if (currentPrice >= paperPosition.sl) closeReason = 'Stop Loss';
+                            if (currentPrice <= paperPosition.tp) closeReason = 'Take Profit';
+                        }
                     }
 
-                    // B. Trailing Stop Update
-                    if (!closeReason && trailingEnabled) {
-                        if (paperPosition.type === 'LONG') {
-                            let newTrailingSL = currentPrice - (currentATR * trailingMult);
-                            if (newTrailingSL > paperPosition.sl) paperPosition.sl = newTrailingSL;
-                        } else {
-                            let newTrailingSL = currentPrice + (currentATR * trailingMult);
-                            if (newTrailingSL < paperPosition.sl) paperPosition.sl = newTrailingSL;
+                    // 3. Señal Contraria y Trailing Stop (Ambos modos)
+                    if (!closeReason) {
+                        if (paperPosition.type === 'LONG' && oscVal < -oscThreshold) closeReason = 'Señal Contraria';
+                        if (paperPosition.type === 'SHORT' && oscVal > oscThreshold) closeReason = 'Señal Contraria';
+
+                        if (!closeReason && trailingEnabled) {
+                            if (paperPosition.type === 'LONG') {
+                                let newTrailingSL = currentPrice - (currentATR * trailingMult);
+                                if (newTrailingSL > paperPosition.sl) paperPosition.sl = newTrailingSL;
+                            } else {
+                                let newTrailingSL = currentPrice + (currentATR * trailingMult);
+                                if (newTrailingSL < paperPosition.sl) paperPosition.sl = newTrailingSL;
+                            }
                         }
                     }
 
@@ -142,7 +182,8 @@ async function startPaperTrading() {
                         const commission = 0.08 * leverage;
                         const netPnl = pnl - commission;
 
-                        paperBalance += (paperBalance * netPnl / 100);
+                        const effectiveBalanceForExit = paperPosition.isPartialClosed ? paperBalance / 2 : paperBalance;
+                        paperBalance += (effectiveBalanceForExit * netPnl / 100);
 
                         paperTrades.push({
                             type: paperPosition.type,
@@ -167,41 +208,83 @@ async function startPaperTrading() {
 
                     // LONG SIGNAL
                     if (prevOsc < oscThreshold && oscVal >= oscThreshold) {
-                        if (isTrending && highVolume && (!rsiFilterEnabled || currentRSI > 50)) {
+                        let confirmed = isTrending && highVolume && (!rsiFilterEnabled || currentRSI > 50);
+
+                        // Trend Guard (EMA 200) en Modo Simple
+                        if (confirmed && uiMode === 'simple') {
+                            if (currentPrice <= currentEMA200) {
+                                confirmed = false;
+                                console.log(`🛡️ PAPER: Trend Guard filtró LONG (Precio < EMA 200)`);
+                            }
+                        }
+
+                        if (confirmed) {
                             let sl, tp;
-                            if (slType === 'smart') {
+                            if (uiMode === 'simple') {
+                                sl = currentPrice - (currentATR * 2.5);
+                            } else if (slType === 'smart') {
                                 sl = currentPrice - (currentATR * slMultiplier);
                             } else if (slType === 'fixed') {
                                 sl = currentPrice * (1 - slPercent / 100);
                             } else { sl = 0; }
 
-                            if (tpType === 'smart') {
+                            if (uiMode === 'simple') {
+                                tp = currentPrice + (currentATR * 3.5);
+                            } else if (tpType === 'smart') {
                                 tp = currentPrice + (currentATR * tpMultiplier);
                             } else if (tpType === 'fixed') {
                                 tp = currentPrice * (1 + tpPercent / 100);
                             } else { tp = 999999999; }
 
-                            paperPosition = { type: 'LONG', entry: currentPrice, sl, tp, entryTime: currentTime };
+                            paperPosition = {
+                                type: 'LONG',
+                                entry: currentPrice,
+                                sl, tp,
+                                entryTime: currentTime,
+                                atrAtEntry: currentATR,
+                                isPartialClosed: false
+                            };
                             console.log(`🟢 LONG paper at ${currentPrice}, SL: ${sl.toFixed(2)}, TP: ${tp.toFixed(2)}`);
                         }
                     }
                     // SHORT SIGNAL
                     else if (prevOsc > -oscThreshold && oscVal <= -oscThreshold) {
-                        if (isTrending && highVolume && (!rsiFilterEnabled || currentRSI < 50)) {
+                        let confirmed = isTrending && highVolume && (!rsiFilterEnabled || currentRSI < 50);
+
+                        // Trend Guard (EMA 200) en Modo Simple
+                        if (confirmed && uiMode === 'simple') {
+                            if (currentPrice >= currentEMA200) {
+                                confirmed = false;
+                                console.log(`🛡️ PAPER: Trend Guard filtró SHORT (Precio > EMA 200)`);
+                            }
+                        }
+
+                        if (confirmed) {
                             let sl, tp;
-                            if (slType === 'smart') {
+                            if (uiMode === 'simple') {
+                                sl = currentPrice + (currentATR * 2.5);
+                            } else if (slType === 'smart') {
                                 sl = currentPrice + (currentATR * slMultiplier);
                             } else if (slType === 'fixed') {
                                 sl = currentPrice * (1 + slPercent / 100);
                             } else { sl = 999999999; }
 
-                            if (tpType === 'smart') {
+                            if (uiMode === 'simple') {
+                                tp = currentPrice - (currentATR * 3.5);
+                            } else if (tpType === 'smart') {
                                 tp = currentPrice - (currentATR * tpMultiplier);
                             } else if (tpType === 'fixed') {
                                 tp = currentPrice * (1 - tpPercent / 100);
                             } else { tp = 0; }
 
-                            paperPosition = { type: 'SHORT', entry: currentPrice, sl, tp, entryTime: currentTime };
+                            paperPosition = {
+                                type: 'SHORT',
+                                entry: currentPrice,
+                                sl, tp,
+                                entryTime: currentTime,
+                                atrAtEntry: currentATR,
+                                isPartialClosed: false
+                            };
                             console.log(`🔴 SHORT paper at ${currentPrice}, SL: ${sl.toFixed(2)}, TP: ${tp.toFixed(2)}`);
                         }
                     }

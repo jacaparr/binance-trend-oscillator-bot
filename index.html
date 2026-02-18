@@ -547,12 +547,146 @@
         .opt-result-row.selected {
             background: #e0f2fe !important;
         }
+
+        /* UI Mode Toggle Styles */
+        .ui-mode-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 25px;
+            padding: 10px;
+            background: rgba(99, 102, 241, 0.05);
+            border-radius: 12px;
+            border: 1px dashed #6366f1;
+        }
+
+        .ui-mode-label {
+            font-weight: 700;
+            color: #1e293b;
+            margin: 0 15px;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5e1;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        input:checked+.slider {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(26px);
+        }
+
+        .quick-start-btn {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .quick-start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(245, 158, 11, 0.3);
+            filter: brightness(1.1);
+        }
+
+        .quick-start-btn:active {
+            transform: translateY(0);
+        }
+
+        .simple-mode .controls {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+            gap: 20px !important;
+        }
+
+        .simple-mode .control-group {
+            background: rgba(255, 255, 255, 0.7);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(99, 102, 241, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+            transition: all 0.3s ease;
+        }
+
+        .simple-mode .control-group:hover {
+            border-color: rgba(99, 102, 241, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .simple-mode .technical-setting {
+            display: none !important;
+        }
+
+        .auto-pilot-badge {
+            display: none;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 800;
+            vertical-align: middle;
+            margin-left: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+        }
+
+        .simple-mode .auto-pilot-badge {
+            display: inline-block;
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
-        <h1>🚀 Binance Futures Bot</h1>
+        <h1>🚀 Binance Futures Bot <span class="auto-pilot-badge">Auto-Pilot ON</span></h1>
         <p class="subtitle">Trend Oscillator Strategy - Backtesting con Datos Reales de Binance API</p>
         <div
             style="background: #e0f2fe; padding: 10px 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; color: #0369a1; font-size: 0.9em;">
@@ -577,6 +711,18 @@
                 • El bot monitorea múltiples criptomonedas simultáneamente<br>
                 • Opera con la primera que dé señal de entrada<br>
             </small>
+        </div>
+
+        <div class="ui-mode-container">
+            <div style="flex: 1; text-align: left;">
+                <span class="ui-mode-label">Avanzado</span>
+                <label class="switch">
+                    <input type="checkbox" id="uiModeToggle" checked onchange="toggleUIMode()">
+                    <span class="slider"></span>
+                </label>
+                <span class="ui-mode-label" style="margin-left: 10px;">Simple (Auto-Piloto)</span>
+            </div>
+            <button class="quick-start-btn" onclick="applyQuickStart()">⚡ Carga Rápida: Best BTC</button>
         </div>
 
         <div class="controls">
@@ -646,19 +792,19 @@
                 <label>Capital Inicial (€):</label>
                 <input type="number" id="capital" value="1000" min="100" step="100">
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>Fast EMA:</label>
                 <input type="number" id="fastEMA" value="8" min="1" max="50">
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>Slow EMA:</label>
                 <input type="number" id="slowEMA" value="65" min="1" max="200">
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>Bias Multiplier:</label>
                 <input type="number" id="biasMult" value="1.062" min="0.5" max="2" step="0.001">
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>Tipo de Stop Loss:</label>
                 <select id="stopLossType">
                     <option value="smart" selected>🧠 Inteligente (ATR)</option>
@@ -666,17 +812,17 @@
                     <option value="none">❌ Desactivado</option>
                 </select>
             </div>
-            <div class="control-group" id="slMultiplierGroup">
+            <div class="control-group technical-setting" id="slMultiplierGroup">
                 <label>SL Multiplicador ATR:</label>
                 <input type="number" id="slMultiplier" value="2" min="0.5" max="5" step="0.5"
                     title="Multiplicador del ATR para Stop Loss">
             </div>
-            <div class="control-group" id="slPercentGroup" style="display:none;">
+            <div class="control-group technical-setting" id="slPercentGroup" style="display:none;">
                 <label>Stop Loss (%):</label>
                 <input type="number" id="stopLoss" value="1" min="0.1" max="10" step="0.1">
             </div>
 
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>Tipo de Take Profit:</label>
                 <select id="takeProfitType">
                     <option value="fixed" selected>📍 Fijo (%)</option>
@@ -684,11 +830,11 @@
                     <option value="none">❌ Desactivado</option>
                 </select>
             </div>
-            <div class="control-group" id="tpMultiplierGroup" style="display:none;">
+            <div class="control-group technical-setting" id="tpMultiplierGroup" style="display:none;">
                 <label>TP Multiplicador ATR:</label>
                 <input type="number" id="tpMultiplier" value="2" min="0.5" max="10" step="0.5">
             </div>
-            <div class="control-group" id="tpPercentGroup">
+            <div class="control-group technical-setting" id="tpPercentGroup">
                 <label>Take Profit (%):</label>
                 <input type="number" id="takeProfit" value="1.5" min="0.1" max="20" step="0.1">
             </div>
@@ -702,14 +848,14 @@
                 </select>
             </div>
 
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>Confirmación Multi-Timeframe:</label>
                 <select id="multiTimeframe">
                     <option value="none">❌ Desactivado</option>
                     <option value="enabled" selected>✅ Confirmar con timeframe superior</option>
                 </select>
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>Modo Multi-Asset:</label>
                 <select id="multiAsset">
                     <option value="single">📊 Activo Único</option>
@@ -719,52 +865,52 @@
             </div>
 
             <!-- ===== NUEVOS FILTROS DE ESTRATEGIA ===== -->
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>📊 Filtro RSI:</label>
                 <select id="rsiFilter">
                     <option value="enabled" selected>✅ Activado (RSI 14)</option>
                     <option value="none">❌ Desactivado</option>
                 </select>
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>📈 Filtro ADX (Fuerza Tendencia):</label>
                 <select id="adxFilter">
                     <option value="enabled" selected>✅ Activado</option>
                     <option value="none">❌ Desactivado</option>
                 </select>
             </div>
-            <div class="control-group" id="adxThresholdGroup">
+            <div class="control-group technical-setting" id="adxThresholdGroup">
                 <label>Umbral ADX mínimo:</label>
                 <input type="number" id="adxThreshold" value="25" min="10" max="50" step="1"
                     title="Solo opera si ADX > este valor (tendencia fuerte)">
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>📊 Filtro Volumen:</label>
                 <select id="volumeFilter">
                     <option value="enabled" selected>✅ Activado</option>
                     <option value="none">❌ Desactivado</option>
                 </select>
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>🔄 Trailing Stop:</label>
                 <select id="trailingStop">
                     <option value="enabled" selected>✅ Activado (ATR)</option>
                     <option value="none">❌ Desactivado</option>
                 </select>
             </div>
-            <div class="control-group" id="trailingMultGroup">
+            <div class="control-group technical-setting" id="trailingMultGroup">
                 <label>Trailing Stop ATR Mult:</label>
                 <input type="number" id="trailingMult" value="2.5" min="0.5" max="5" step="0.5"
                     title="Distancia del trailing stop en múltiplos de ATR">
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>⏱️ Cooldown (velas post-SL):</label>
                 <input type="number" id="cooldownBars" value="2" min="0" max="10" step="1"
                     title="Velas de espera tras un Stop Loss">
             </div>
-            <div class="control-group">
+            <div class="control-group technical-setting">
                 <label>🎯 Umbral Oscilador:</label>
-                <input type="number" id="oscThreshold" value="0" min="0" max="100" step="0.1"
+                <input type="number" id="oscThreshold" value="0.05" min="0" max="100" step="0.1"
                     title="Cruce mínimo del oscilador para entrar (0 = desactivado)">
             </div>
         </div>
@@ -975,6 +1121,44 @@
             'OPUSDT', 'INJUSDT', 'LDOUSDT', 'STXUSDT', 'SEIUSDT', 'SUIUSDT'];
 
         let multiAssetData = {};
+
+        function toggleUIMode() {
+            const container = document.querySelector('.container');
+            const toggle = document.getElementById('uiModeToggle');
+            if (toggle.checked) {
+                container.classList.add('simple-mode');
+                console.log('💡 Modo SIMPLE (Auto-Piloto) activado');
+            } else {
+                container.classList.remove('simple-mode');
+                console.log('🔧 Modo AVANZADO activado');
+            }
+        }
+
+        function applyQuickStart() {
+            // Preset optimizado para BTCUSDT 1H
+            document.getElementById('symbol').value = 'BTCUSDT';
+            document.getElementById('timeframe').value = '1h';
+            document.getElementById('leverage').value = '10';
+            document.getElementById('capital').value = '1000';
+
+            // Configuración técnica óptima (oculta en modo simple)
+            document.getElementById('fastEMA').value = '12';
+            document.getElementById('slowEMA').value = '26';
+            document.getElementById('biasMult').value = '0.08';
+            document.getElementById('stopLossType').value = 'smart';
+            document.getElementById('slMultiplier').value = '2.5';
+            document.getElementById('takeProfit').value = '0'; // Usar ATR TP adaptativo
+
+            console.log('⚡ Preset "Best BTC" cargado con éxito');
+            alert('⚡ Configuración "Best BTC" cargada. ¡Auto-Piloto listo!');
+        }
+
+        // Initialize UI mode on load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Start in Simple mode
+            document.getElementById('uiModeToggle').checked = true;
+            toggleUIMode();
+        });
 
         // Nombres completos de las criptomonedas
         const CRYPTO_NAMES = {
@@ -1375,12 +1559,14 @@
                         paperTradingData.lows = data.map(d => d.low);
                         paperTradingData.closes = prices;
                         const oscillator = calculateOscillator(prices, fastLen, slowLen, bias);
+                        const ema200 = calculateEMA(prices, 200);
+                        const uiMode = document.querySelector('.container').classList.contains('simple-mode') ? 'simple' : 'advanced';
 
-                        // Calcular ATR si el Stop Loss es inteligente
+                        // Calcular ATR si el Stop Loss es inteligente o estamos en Modo Simple
                         let atrValues = [];
-                        if (stopLossType === 'smart') {
+                        if (stopLossType === 'smart' || uiMode === 'simple') {
                             atrValues = calculateATR(data, 14);
-                            console.log(`🧠 Stop Loss Inteligente activado - ATR multiplicador: ${slMultiplier}x`);
+                            console.log(`🧠 ${uiMode === 'simple' ? 'Auto-Piloto' : 'Stop Loss Inteligente'} activado - ATR 14`);
                         }
 
                         let balance = initialCapital;
@@ -1414,7 +1600,7 @@
                             if (!position && currOsc >= 0 && prevOsc < 0) {
                                 longSignals++;
 
-                                // Verificar confirmación del timeframe superior
+                                // 1. Verificar confirmación del timeframe superior
                                 let confirmed = true;
                                 if (multiTF === 'enabled' && higherTFSignal) {
                                     confirmed = higherTFSignal.trend === 'ALCISTA';
@@ -1424,12 +1610,24 @@
                                     }
                                 }
 
+                                // 2. Verificar Trend Guard (EMA 200) en Modo Simple
+                                if (confirmed && uiMode === 'simple') {
+                                    confirmed = prices[i] > ema200[i];
+                                    if (!confirmed) {
+                                        filteredSignals++;
+                                        console.log(`🛡️ Trend Guard filtró LONG - Precio por debajo de EMA 200`);
+                                    }
+                                }
+
                                 if (confirmed) {
                                     position = {
                                         type: 'LONG',
                                         entry: prices[i],
                                         entryTime: times[i],
-                                        leverage: leverage
+                                        leverage: leverage,
+                                        atrAtEntry: atrValues[i] || 0,
+                                        isPartialClosed: false,
+                                        originalSize: balance * leverage / prices[i]
                                     };
                                 }
                             }
@@ -1437,7 +1635,7 @@
                             else if (!position && currOsc < 0 && prevOsc >= 0) {
                                 shortSignals++;
 
-                                // Verificar confirmación del timeframe superior
+                                // 1. Verificar confirmación del timeframe superior
                                 let confirmed = true;
                                 if (multiTF === 'enabled' && higherTFSignal) {
                                     confirmed = higherTFSignal.trend === 'BAJISTA';
@@ -1447,12 +1645,24 @@
                                     }
                                 }
 
+                                // 2. Verificar Trend Guard (EMA 200) en Modo Simple
+                                if (confirmed && uiMode === 'simple') {
+                                    confirmed = prices[i] < ema200[i];
+                                    if (!confirmed) {
+                                        filteredSignals++;
+                                        console.log(`🛡️ Trend Guard filtró SHORT - Precio por encima de EMA 200`);
+                                    }
+                                }
+
                                 if (confirmed) {
                                     position = {
                                         type: 'SHORT',
                                         entry: prices[i],
                                         entryTime: times[i],
-                                        leverage: leverage
+                                        leverage: leverage,
+                                        atrAtEntry: atrValues[i] || 0,
+                                        isPartialClosed: false,
+                                        originalSize: balance * leverage / prices[i]
                                     };
                                 }
                             }
@@ -1466,32 +1676,68 @@
                                     ? ((prices[i] - position.entry) / position.entry) * 100
                                     : ((position.entry - prices[i]) / position.entry) * 100;
 
-                                // Verificar Stop Loss
-                                if (stopLossType === 'smart' && atrValues[i] > 0) {
-                                    // Stop Loss Inteligente basado en ATR
-                                    const atrDistance = (atrValues[i] / position.entry) * 100 * slMultiplier;
+                                // 1. Verificar Stop Loss y Take Profit Adaptativos (Modo Simple)
+                                if (uiMode === 'simple') {
+                                    const atrDistanceSL = (position.atrAtEntry / position.entry) * 100 * 2.5; // 2.5x ATR para SL
+                                    const atrDistanceTP1 = (position.atrAtEntry / position.entry) * 100 * 1.5; // 1.5x ATR para TP1
+                                    const atrDistanceTP2 = (position.atrAtEntry / position.entry) * 100 * 3.5; // 3.5x ATR para TP2
 
-                                    if (priceChangePercent <= -atrDistance) {
-                                        shouldClose = true;
-                                        exitReason = `🧠 SL Inteligente (${atrDistance.toFixed(2)}%)`;
+                                    // TP Parcial (1.5x ATR)
+                                    if (!position.isPartialClosed && priceChangePercent >= atrDistanceTP1) {
+                                        const leveragedReturn = (atrDistanceTP1 / 100) * position.leverage;
+                                        const commissionCost = commission * 2;
+                                        const partialProfit = (balance / 2) * (leveragedReturn - commissionCost);
+
+                                        balance += partialProfit;
+                                        position.isPartialClosed = true;
+                                        console.log(`🌗 Salida Parcial al 1.5x ATR (+${partialProfit.toFixed(2)}€) - SL movido a Break Even`);
                                     }
-                                } else if (stopLossType === 'fixed' && stopLossPercent > 0 && priceChangePercent <= -stopLossPercent) {
-                                    shouldClose = true;
-                                    exitReason = '🛑 Stop Loss';
+
+                                    // SL a Break Even si ya hubo salida parcial
+                                    if (position.isPartialClosed && priceChangePercent <= 0) {
+                                        shouldClose = true;
+                                        exitReason = '🛡️ Break Even (Tras TP1)';
+                                    }
+                                    // Stop Loss Original (2.5x ATR)
+                                    else if (!position.isPartialClosed && priceChangePercent <= -atrDistanceSL) {
+                                        shouldClose = true;
+                                        exitReason = `🛑 Auto-SL (${atrDistanceSL.toFixed(2)}%)`;
+                                    }
+                                    // Take Profit Final (3.5x ATR)
+                                    else if (priceChangePercent >= atrDistanceTP2) {
+                                        shouldClose = true;
+                                        exitReason = `🎯 Auto-TP Final (${atrDistanceTP2.toFixed(2)}%)`;
+                                    }
                                 }
-                                // Verificar Take Profit
-                                else if (takeProfitPercent > 0 && priceChangePercent >= takeProfitPercent) {
-                                    shouldClose = true;
-                                    exitReason = '🎯 Take Profit';
+                                // 2. Lógica Manual Tradicional (Modo Avanzado)
+                                else {
+                                    if (stopLossType === 'smart' && atrValues[i] > 0) {
+                                        const atrDistance = (atrValues[i] / position.entry) * 100 * slMultiplier;
+                                        if (priceChangePercent <= -atrDistance) {
+                                            shouldClose = true;
+                                            exitReason = `🧠 SL Inteligente (${atrDistance.toFixed(2)}%)`;
+                                        }
+                                    } else if (stopLossType === 'fixed' && stopLossPercent > 0 && priceChangePercent <= -stopLossPercent) {
+                                        shouldClose = true;
+                                        exitReason = '🛑 Stop Loss';
+                                    }
+
+                                    if (!shouldClose && takeProfitPercent > 0 && priceChangePercent >= takeProfitPercent) {
+                                        shouldClose = true;
+                                        exitReason = '🎯 Take Profit';
+                                    }
                                 }
-                                // Verificar señal de salida por oscilador
-                                else if (position.type === 'LONG' && currOsc < 0 && prevOsc >= 0) {
-                                    shouldClose = true;
-                                    exitReason = '📉 Señal';
-                                }
-                                else if (position.type === 'SHORT' && currOsc >= 0 && prevOsc < 0) {
-                                    shouldClose = true;
-                                    exitReason = '📈 Señal';
+
+                                // 3. Verificar señal de salida por oscilador (Ambos modos)
+                                if (!shouldClose) {
+                                    if (position.type === 'LONG' && currOsc < 0 && prevOsc >= 0) {
+                                        shouldClose = true;
+                                        exitReason = '📉 Señal';
+                                    }
+                                    else if (position.type === 'SHORT' && currOsc >= 0 && prevOsc < 0) {
+                                        shouldClose = true;
+                                        exitReason = '📈 Señal';
+                                    }
                                 }
 
                                 // Cerrar posición si se cumple alguna condición
@@ -1503,7 +1749,8 @@
                                     const leveragedReturn = priceChange * position.leverage;
                                     const commissionCost = commission * 2; // Entry + Exit
                                     const netReturn = leveragedReturn - commissionCost;
-                                    const profitLoss = balance * netReturn;
+                                    const effectiveBalanceForExit = position.isPartialClosed ? balance / 2 : balance;
+                                    const profitLoss = effectiveBalanceForExit * netReturn;
 
                                     balance += profitLoss;
                                     if (profitLoss > 0) wins++;

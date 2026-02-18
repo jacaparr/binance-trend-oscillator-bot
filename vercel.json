@@ -1,6 +1,10 @@
 {
+  "name": "binance-trend-oscillator-bot",
   "rewrites": [
-    { "source": "/favicon.ico", "destination": "/favicon.svg" }
+    {
+      "source": "/favicon.ico",
+      "destination": "/favicon.svg"
+    }
   ],
   "cleanUrls": true
 }
