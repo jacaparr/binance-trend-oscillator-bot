@@ -648,7 +648,7 @@
             </div>
             <div class="control-group">
                 <label>Fast EMA:</label>
-                <input type="number" id="fastEMA" value="4" min="1" max="50">
+                <input type="number" id="fastEMA" value="8" min="1" max="50">
             </div>
             <div class="control-group">
                 <label>Slow EMA:</label>
@@ -716,6 +716,56 @@
                     <option value="multi">🎯 Múltiples Activos (Top 15)</option>
                     <option value="all">🚀 Todos los Activos (30+)</option>
                 </select>
+            </div>
+
+            <!-- ===== NUEVOS FILTROS DE ESTRATEGIA ===== -->
+            <div class="control-group">
+                <label>📊 Filtro RSI:</label>
+                <select id="rsiFilter">
+                    <option value="enabled" selected>✅ Activado (RSI 14)</option>
+                    <option value="none">❌ Desactivado</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>📈 Filtro ADX (Fuerza Tendencia):</label>
+                <select id="adxFilter">
+                    <option value="enabled" selected>✅ Activado</option>
+                    <option value="none">❌ Desactivado</option>
+                </select>
+            </div>
+            <div class="control-group" id="adxThresholdGroup">
+                <label>Umbral ADX mínimo:</label>
+                <input type="number" id="adxThreshold" value="25" min="10" max="50" step="1"
+                    title="Solo opera si ADX > este valor (tendencia fuerte)">
+            </div>
+            <div class="control-group">
+                <label>📊 Filtro Volumen:</label>
+                <select id="volumeFilter">
+                    <option value="enabled" selected>✅ Activado</option>
+                    <option value="none">❌ Desactivado</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>🔄 Trailing Stop:</label>
+                <select id="trailingStop">
+                    <option value="enabled" selected>✅ Activado (ATR)</option>
+                    <option value="none">❌ Desactivado</option>
+                </select>
+            </div>
+            <div class="control-group" id="trailingMultGroup">
+                <label>Trailing Stop ATR Mult:</label>
+                <input type="number" id="trailingMult" value="2.5" min="0.5" max="5" step="0.5"
+                    title="Distancia del trailing stop en múltiplos de ATR">
+            </div>
+            <div class="control-group">
+                <label>⏱️ Cooldown (velas post-SL):</label>
+                <input type="number" id="cooldownBars" value="2" min="0" max="10" step="1"
+                    title="Velas de espera tras un Stop Loss">
+            </div>
+            <div class="control-group">
+                <label>🎯 Umbral Oscilador:</label>
+                <input type="number" id="oscThreshold" value="0" min="0" max="100" step="0.1"
+                    title="Cruce mínimo del oscilador para entrar (0 = desactivado)">
             </div>
         </div>
 
@@ -1008,7 +1058,7 @@
                     const infoDiv = document.getElementById('multiTFInfo');
                     if (this.value === 'enabled') {
                         infoDiv.style.display = 'block';
-                    } else {
+                    } else if (typeof mode !== 'undefined' && mode === 'paper') { startPaperTrading(); } else {
                         infoDiv.style.display = 'none';
                     }
                 });
@@ -1020,7 +1070,7 @@
                     const infoDiv = document.getElementById('multiAssetInfo');
                     if (this.value !== 'single') {
                         infoDiv.style.display = 'block';
-                    } else {
+                    } else if (typeof mode !== 'undefined' && mode === 'paper') { startPaperTrading(); } else {
                         infoDiv.style.display = 'none';
                     }
                 });
@@ -1088,7 +1138,7 @@
                             if (this.value === 'custom') {
                                 if (customDateStart) customDateStart.style.display = 'flex';
                                 if (customDateEnd) customDateEnd.style.display = 'flex';
-                            } else {
+                            } else if (typeof mode !== 'undefined' && mode === 'paper') { startPaperTrading(); } else {
                                 if (customDateStart) customDateStart.style.display = 'none';
                                 if (customDateEnd) customDateEnd.style.display = 'none';
                             }
@@ -1122,7 +1172,7 @@
                                     endTime = new Date(endDateInput).getTime();
                                     endTime = endTime + (24 * 60 * 60 * 1000) - 1; // Fin del día
                                 }
-                            } else {
+                            } else if (typeof mode !== 'undefined' && mode === 'paper') { startPaperTrading(); } else {
                                 // Rangos predefinidos
                                 const now = new Date();
 
@@ -1238,7 +1288,7 @@
                         } else if (i === period - 1) {
                             sum += tr[i];
                             atr.push(sum / period);
-                        } else {
+                        } else if (typeof mode !== 'undefined' && mode === 'paper') { startPaperTrading(); } else {
                             // ATR suavizado: (ATR anterior * (period-1) + TR actual) / period
                             const newATR = (atr[i - 1] * (period - 1) + tr[i]) / period;
                             atr.push(newATR);
@@ -1285,6 +1335,7 @@
                 }
 
                 function stopTrading() {
+                    if (paperTradingActive) stopPaperTrading();
                     if (tradingInterval) {
                         clearInterval(tradingInterval);
                         tradingInterval = null;
@@ -1700,82 +1751,108 @@
                 }
 
                 async function runBacktestWithParams(data, fastPeriod, slowPeriod, biasMultiplier, capital, leverage) {
-                    // Calculate EMAs
-                    const times = data.map(d => d.time);
                     const closes = data.map(d => d.close);
+                    const highs = data.map(d => d.high);
+                    const lows = data.map(d => d.low);
+                    const volumes = data.map(d => d.volume);
 
+                    // Indicators
                     const fastEMA = calculateEMA(closes, fastPeriod);
                     const slowEMA = calculateEMA(closes, slowPeriod);
-
-                    // Calculate oscillator
                     const oscillator = fastEMA.map((fast, i) => (fast - slowEMA[i]) * biasMultiplier);
+                    const atr = calculateATR(highs, lows, closes, 14);
+                    const rsi = calculateRSI(closes, 14);
+                    const adx = calculateADX(highs, lows, closes, 14);
+                    const volSMA = calculateSMA(volumes, 20);
 
-                    // Run backtest
+                    // Strategy Settings (from UI)
+                    const rsiFilterEnabled = document.getElementById('rsiFilter').value === 'enabled';
+                    const adxFilterEnabled = document.getElementById('adxFilter').value === 'enabled';
+                    const adxMin = parseFloat(document.getElementById('adxThreshold').value);
+                    const volumeFilterEnabled = document.getElementById('volumeFilter').value === 'enabled';
+                    const trailingEnabled = document.getElementById('trailingStop').value === 'enabled';
+                    const trailingMult = parseFloat(document.getElementById('trailingMult').value);
+                    const cooldownLimit = parseInt(document.getElementById('cooldownBars').value);
+                    const oscThreshold = parseFloat(document.getElementById('oscThreshold').value);
+                    const slMultiplier = parseFloat(document.getElementById('slMultiplier').value);
+                    const tpMultiplier = parseFloat(document.getElementById('tpMultiplier').value);
+
                     let balance = capital;
                     let position = null;
                     let trades = [];
+                    let cooldownCounter = 0;
 
                     for (let i = 1; i < closes.length; i++) {
-                        const prevOsc = oscillator[i - 1];
-                        const currOsc = oscillator[i];
-                        const price = closes[i];
+                        if (cooldownCounter > 0) cooldownCounter--;
 
-                        // Entry signals
-                        if (!position) {
-                            if (prevOsc < 0 && currOsc >= 0) {
-                                // LONG signal
-                                position = {
-                                    type: 'LONG',
-                                    entryPrice: price,
-                                    entryIndex: i,
-                                    entryBalance: balance
-                                };
-                            } else if (prevOsc > 0 && currOsc <= 0) {
-                                // SHORT signal
-                                position = {
-                                    type: 'SHORT',
-                                    entryPrice: price,
-                                    entryIndex: i,
-                                    entryBalance: balance
-                                };
-                            }
-                        }
-                        // Exit signals
-                        else {
+                        if (position) {
                             let shouldClose = false;
+                            let exitReason = 'Signal';
 
-                            if (position.type === 'LONG' && prevOsc > 0 && currOsc <= 0) {
-                                shouldClose = true;
-                            } else if (position.type === 'SHORT' && prevOsc < 0 && currOsc >= 0) {
-                                shouldClose = true;
+                            // Exit Logic
+                            if (position.type === 'LONG') {
+                                if (closes[i] <= position.sl) { shouldClose = true; exitReason = 'Stop Loss'; }
+                                else if (closes[i] >= position.tp) { shouldClose = true; exitReason = 'Take Profit'; }
+                                else if (oscillator[i] < -oscThreshold) { shouldClose = true; exitReason = 'Signal'; }
+                            } else {
+                                if (closes[i] >= position.sl) { shouldClose = true; exitReason = 'Stop Loss'; }
+                                else if (closes[i] <= position.tp) { shouldClose = true; exitReason = 'Take Profit'; }
+                                else if (oscillator[i] > oscThreshold) { shouldClose = true; exitReason = 'Signal'; }
+                            }
+
+                            // Trailing Stop
+                            if (!shouldClose && trailingEnabled) {
+                                if (position.type === 'LONG') {
+                                    let newSL = closes[i] - (atr[i] * trailingMult);
+                                    if (newSL > position.sl) position.sl = newSL;
+                                } else {
+                                    let newSL = closes[i] + (atr[i] * trailingMult);
+                                    if (newSL < position.sl) position.sl = newSL;
+                                }
                             }
 
                             if (shouldClose) {
                                 const priceChange = position.type === 'LONG'
-                                    ? (price - position.entryPrice) / position.entryPrice
-                                    : (position.entryPrice - price) / position.entryPrice;
+                                    ? (closes[i] - position.entryPrice) / position.entryPrice
+                                    : (position.entryPrice - closes[i]) / position.entryPrice;
 
-                                const leveragedReturn = priceChange * leverage;
-                                const commission = 0.0008; // 0.08% total (0.04% entry + 0.04% exit)
-                                const netReturn = leveragedReturn - commission;
-                                const profit = balance * netReturn;
+                                const commission = 0.0008; // Entry + Exit
+                                const netReturn = (priceChange * leverage) - commission;
+                                balance += balance * netReturn;
 
-                                balance += profit;
-
-                                trades.push({
-                                    type: position.type,
-                                    entryPrice: position.entryPrice,
-                                    exitPrice: price,
-                                    profit: profit,
-                                    balance: balance
-                                });
-
+                                trades.push({ profit: balance * netReturn }); // Simplified for speed
+                                if (exitReason === 'Stop Loss') cooldownCounter = cooldownLimit;
                                 position = null;
+                            }
+                        } else if (cooldownCounter === 0) {
+                            // Entry Logic
+                            const isTrending = !adxFilterEnabled || adx[i] > adxMin;
+                            const highVolume = !volumeFilterEnabled || volumes[i] > volSMA[i];
+
+                            if (oscillator[i - 1] < oscThreshold && oscillator[i] >= oscThreshold) {
+                                // LONG
+                                if (isTrending && highVolume && (!rsiFilterEnabled || rsi[i] > 50)) {
+                                    position = {
+                                        type: 'LONG',
+                                        entryPrice: closes[i],
+                                        sl: closes[i] - (atr[i] * slMultiplier),
+                                        tp: closes[i] + (atr[i] * tpMultiplier)
+                                    };
+                                }
+                            } else if (oscillator[i - 1] > -oscThreshold && oscillator[i] <= -oscThreshold) {
+                                // SHORT
+                                if (isTrending && highVolume && (!rsiFilterEnabled || rsi[i] < 50)) {
+                                    position = {
+                                        type: 'SHORT',
+                                        entryPrice: closes[i],
+                                        sl: closes[i] + (atr[i] * slMultiplier),
+                                        tp: closes[i] - (atr[i] * tpMultiplier)
+                                    };
+                                }
                             }
                         }
                     }
 
-                    // Calculate metrics
                     const roi = ((balance - capital) / capital) * 100;
                     const totalTrades = trades.length;
                     const winners = trades.filter(t => t.profit > 0).length;
@@ -1783,15 +1860,7 @@
 
                     const totalWins = trades.filter(t => t.profit > 0).reduce((sum, t) => sum + t.profit, 0);
                     const totalLosses = Math.abs(trades.filter(t => t.profit < 0).reduce((sum, t) => sum + t.profit, 0));
-                    const profitFactor = totalLosses > 0 ? totalWins / totalLosses : (totalWins > 0 ? 999 : 0);
-
-                    // Calculate Sharpe Ratio (simplified)
-                    const returns = trades.map(t => (t.profit / capital) * 100);
-                    const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
-                    const stdDev = returns.length > 1
-                        ? Math.sqrt(returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length)
-                        : 0;
-                    const sharpe = stdDev > 0 ? (avgReturn / stdDev) : 0;
+                    const profitFactor = totalLosses > 0 ? totalWins / totalLosses : (totalWins > 0 ? 99 : 0);
 
                     return {
                         finalBalance: balance,
@@ -1801,7 +1870,6 @@
                         winners,
                         winRate,
                         profitFactor,
-                        sharpe,
                         trades
                     };
                 }
@@ -1909,7 +1977,7 @@
                     } else if (slType === 'fixed') {
                         slMultiplierGroup.style.display = 'none';
                         slPercentGroup.style.display = 'block';
-                    } else {
+                    } else if (typeof mode !== 'undefined' && mode === 'paper') { startPaperTrading(); } else {
                         slMultiplierGroup.style.display = 'none';
                         slPercentGroup.style.display = 'none';
                     }
@@ -1927,7 +1995,7 @@
                     } else if (tpType === 'fixed') {
                         tpMultiplierGroup.style.display = 'none';
                         tpPercentGroup.style.display = 'block';
-                    } else {
+                    } else if (typeof mode !== 'undefined' && mode === 'paper') { startPaperTrading(); } else {
                         tpMultiplierGroup.style.display = 'none';
                         tpPercentGroup.style.display = 'none';
                     }
@@ -1972,446 +2040,597 @@
                 });
 
     </script>
-<script>
-// ==================================================================
-// BINANCE TREND OSCILLATOR BOT - COM PLETE JAVASCRIPT
-// ==================================================================
+    <script>
+                // ==================================================================
+                // BINANCE TREND OSCILLATOR BOT - COM PLETE JAVASCRIPT
+                // ==================================================================
 
-// Lista de activos para multi-asset trading
-const TOP_15_ASSETS = [
-    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT',
-    'DOGEUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT', 'LTCUSDT',
-    'AVAXUSDT', 'MATICUSDT', 'UNIUSDT', 'FTMUSDT', 'ATOMUSDT'
-];
+                // Lista de activos para multi-asset trading
+                const TOP_15_ASSETS = [
+                    'BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'ADAUSDT',
+                    'DOGEUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT', 'LTCUSDT',
+                    'AVAXUSDT', 'MATICUSDT', 'UNIUSDT', 'FTMUSDT', 'ATOMUSDT'
+                ];
 
-const ALL_ASSETS = [
-    ...TOP_15_ASSETS,
-    'ETCUSDT', 'XLMUSDT', 'ALGOUSDT', 'VETUSDT', 'ICPUSDT',
-    'FILUSDT', 'TRXUSDT', 'EOSUSDT', 'AAVEUSDT', 'MKRUSDT',
-    'THETAUSDT', 'XTZUSDT', 'NEARUSDT', 'SANDUSDT', 'MANAUSDT'
-];
+                const ALL_ASSETS = [
+                    ...TOP_15_ASSETS,
+                    'ETCUSDT', 'XLMUSDT', 'ALGOUSDT', 'VETUSDT', 'ICPUSDT',
+                    'FILUSDT', 'TRXUSDT', 'EOSUSDT', 'AAVEUSDT', 'MKRUSDT',
+                    'THETAUSDT', 'XTZUSDT', 'NEARUSDT', 'SANDUSDT', 'MANAUSDT'
+                ];
 
-const CRYPTO_NAMES = {
-    'BTCUSDT': '📊 Bitcoin (BTC)',
-    'ETHUSDT': '📊 Ethereum (ETH)',
-    'BNBUSDT': '📊 Binance Coin (BNB)',
-    'XRPUSDT': '📊 Ripple (XRP)',
-    'ADAUSDT': '📊 Cardano (ADA)',
-    'DO GEUSDT': '📊 Dogecoin (DOGE)',
-    'SOLUSDT': '📊 Solana (SOL)',
-    'DOTUSDT': '📊 Polkadot (DOT)',
-    'LINKUSDT': '📊 Chainlink (LINK)',
-    'LTCUSDT': '📊 Litecoin (LTC)',
-    'AVAXUSDT': '📊 Avalanche (AVAX)',
-    'MATICUSDT': '📊 Polygon (MATIC)',
-    'UNIUSDT': '📊 Uniswap (UNI)',
-    'FTMUSDT': '📊 Fantom (FTM)',
-    'ATOMUSDT': '📊 Cosmos (ATOM)'
-};
+                const CRYPTO_NAMES = {
+                    'BTCUSDT': '📊 Bitcoin (BTC)',
+                    'ETHUSDT': '📊 Ethereum (ETH)',
+                    'BNBUSDT': '📊 Binance Coin (BNB)',
+                    'XRPUSDT': '📊 Ripple (XRP)',
+                    'ADAUSDT': '📊 Cardano (ADA)',
+                    'DO GEUSDT': '📊 Dogecoin (DOGE)',
+                    'SOLUSDT': '📊 Solana (SOL)',
+                    'DOTUSDT': '📊 Polkadot (DOT)',
+                    'LINKUSDT': '📊 Chainlink (LINK)',
+                    'LTCUSDT': '📊 Litecoin (LTC)',
+                    'AVAXUSDT': '📊 Avalanche (AVAX)',
+                    'MATICUSDT': '📊 Polygon (MATIC)',
+                    'UNIUSDT': '📊 Uniswap (UNI)',
+                    'FTMUSDT': '📊 Fantom (FTM)',
+                    'ATOMUSDT': '📊 Cosmos (ATOM)'
+                };
 
-// ==========================================
-// UTILITY FUNCTIONS
-// ==========================================
-function calculateEMA(prices, length) {
-    const k = 2 / (length + 1);
-    let ema = [prices[0]];
-    for (let i = 1; i < prices.length; i++) {
-        ema.push(prices[i] * k + ema[i - 1] * (1 - k));
-    }
-    return ema;
-}
-
-function calculateOscillator(prices, fastLen, slowLen, bias) {
-    const fastEMA = calculateEMA(prices, fastLen);
-    const slowEMA = calculateEMA(prices, slowLen);
-    return fastEMA.map((fast, i) => (fast - slowEMA[i]) * bias);
-}
-
-function calculateATR(highs, lows, closes, period = 14) {
-    const tr = [];
-    for (let i = 1; i < closes.length; i++) {
-        const h_l = highs[i] - lows[i];
-        const h_cp = Math.abs(highs[i] - closes[i - 1]);
-        const l_cp = Math.abs(lows[i] - closes[i - 1]);
-        tr.push(Math.max(h_l, h_cp, l_cp));
-    }
-    const atr = [tr[0] || 0];
-    if (tr.length >= period) {
-        const initialATR = tr.slice(0, period).reduce((a, b) => a + b, 0) / period;
-        atr.length = 0;
-        atr.push(initialATR);
-        for (let i = period; i < tr.length; i++) {
-            atr.push((atr[atr.length - 1] * (period - 1) + tr[i]) / period);
-        }
-    }
-    while (atr.length < tr.length) atr.unshift(0);
-    return atr;
-}
-
-// ==========================================
-// DATA FETCHING
-// ==========================================
-async function fetchBinanceData(symbol, interval, limit = 500) {
-    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-    try {
-        const response = await fetch(url);
-        const data = await response.json();
-        return data.map(candle => ({
-            time: candle[0],
-            open: parseFloat(candle[1]),
-            high: parseFloat(candle[2]),
-            low: parseFloat(candle[3]),
-            close: parseFloat(candle[4]),
-            volume: parseFloat(candle[5])
-        }));
-    } catch (error) {
-        console.error('Error fetching Binance data:', error);
-        throw error;
-    }
-}
-
-// ==========================================
-// BACKTESTING LOGIC
-// ==========================================
-async function runBacktest() {
-    console.log('🚀 Iniciando Backtest...');
-    try {
-        document.getElementById('loading').style.display = 'block';
-        document.getElementById('stats').style.display = 'none';
-
-        const symbol = document.getElementById('symbol').value;
-        const timeframe = document.getElementById('timeframe').value;
-        const fastLen = parseInt(document.getElementById('fastEMA').value);
-        const slowLen = parseInt(document.getElementById('slowEMA').value);
-        const bias = parseFloat(document.getElementById('biasMult').value);
-        const capital = parseFloat(document.getElementById('capital').value);
-        const leverage = parseInt(document.getElementById('leverage').value);
-
-        const data = await fetchBinanceData(symbol, timeframe, 1000);
-
-        if (!data || data.length < slowLen + 10) {
-            throw new Error('Datos insuficientes');
-        }
-
-        const prices = data.map(d => d.close);
-        const highs = data.map(d => d.high);
-        const lows = data.map(d => d.low);
-        const oscillator = calculateOscillator(prices, fastLen, slowLen, bias);
-        const atr = calculateATR(highs, lows, prices, 14);
-
-        let balance = capital;
-        let position = null;
-        let trades = [];
-        let wins = 0;
-
-        const slType = document.getElementById('stopLossType').value;
-        const slMultiplier = parseFloat(document.getElementById('slMultiplier').value);
-        const slPercent = parseFloat(document.getElementById('stopLoss').value);
-        const tpType = document.getElementById('takeProfitType').value;
-        const tpMultiplier = parseFloat(document.getElementById('tpMultiplier').value);
-        const tpPercent = parseFloat(document.getElementById('takeProfit').value);
-
-        for (let i = slowLen; i < data.length; i++) {
-            const currentPrice = data[i].close;
-            const time = new Date(data[i].time);
-            const oscVal = oscillator[i];
-            const prevOsc = oscillator[i - 1];
-            const currentATR = atr[i];
-
-            // Check exit conditions
-            if (position) {
-                let closeReason = null;
-
-                // Stop Loss/Take Profit
-                if (position.type === 'LONG') {
-                    if (currentPrice <= position.sl) closeReason = 'Stop Loss';
-                    if (currentPrice >= position.tp) closeReason = 'Take Profit';
-                } else {
-                    if (currentPrice >= position.sl) closeReason = 'Stop Loss';
-                    if (currentPrice <= position.tp) closeReason = 'Take Profit';
+                // ==========================================
+                // UTILITY FUNCTIONS
+                // ==========================================
+                function calculateEMA(prices, length) {
+                    const k = 2 / (length + 1);
+                    let ema = [prices[0]];
+                    for (let i = 1; i < prices.length; i++) {
+                        ema.push(prices[i] * k + ema[i - 1] * (1 - k));
+                    }
+                    return ema;
                 }
 
-                // Signal reversal
-                if (position.type === 'LONG' && oscVal < 0) closeReason = 'Señal Contraria';
-                if (position.type === 'SHORT' && oscVal >= 0) closeReason = 'Señal Contraria';
+                function calculateOscillator(prices, fastLen, slowLen, bias) {
+                    const fastEMA = calculateEMA(prices, fastLen);
+                    const slowEMA = calculateEMA(prices, slowLen);
+                    return fastEMA.map((fast, i) => (fast - slowEMA[i]) * bias);
+                }
 
-                // Close position
-                if (closeReason) {
-                    const pnl = position.type === 'LONG'
-                        ? ((currentPrice - position.entry) / position.entry) * 100 * leverage
-                        : ((position.entry - currentPrice) / position.entry) * 100 * leverage;
+                function calculateSMA(data, period) {
+                    let sma = [];
+                    for (let i = 0; i < data.length; i++) {
+                        if (i < period - 1) {
+                            sma.push(0);
+                        } else {
+                            let sum = 0;
+                            for (let j = 0; j < period; j++) {
+                                sum += data[i - j];
+                            }
+                            sma.push(sum / period);
+                        }
+                    }
+                    return sma;
+                }
 
-                    balance += (balance * pnl / 100);
-                    if (pnl > 0) wins++;
+                function calculateRSI(prices, period = 14) {
+                    let rsi = [0];
+                    let gains = [0];
+                    let losses = [0];
 
-                    trades.push({
-                        type: position.type,
-                        entry: position.entry,
-                        exit: currentPrice,
-                        entryTime: position.entryTime,
-                        exitTime: time,
-                        pnl: pnl,
-                        closeReason: closeReason
+                    for (let i = 1; i < prices.length; i++) {
+                        let change = prices[i] - prices[i - 1];
+                        gains.push(change > 0 ? change : 0);
+                        losses.push(change < 0 ? -change : 0);
+                    }
+
+                    let avgGain = calculateEMA(gains, period);
+                    let avgLoss = calculateEMA(losses, period);
+
+                    for (let i = 1; i < prices.length; i++) {
+                        if (avgLoss[i] === 0) {
+                            rsi.push(100);
+                        } else {
+                            let rs = avgGain[i] / avgLoss[i];
+                            rsi.push(100 - (100 / (1 + rs)));
+                        }
+                    }
+                    return rsi;
+                }
+
+                function calculateADX(highs, lows, closes, period = 14) {
+                    let tr = [0];
+                    let plusDM = [0];
+                    let minusDM = [0];
+
+                    for (let i = 1; i < closes.length; i++) {
+                        let h = highs[i], l = lows[i], pc = closes[i - 1], ph = highs[i - 1], pl = lows[i - 1];
+
+                        let trVal = Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc));
+                        tr.push(trVal);
+
+                        let upMove = h - ph;
+                        let downMove = pl - l;
+
+                        plusDM.push(upMove > downMove && upMove > 0 ? upMove : 0);
+                        minusDM.push(downMove > upMove && downMove > 0 ? downMove : 0);
+                    }
+
+                    let smoothTR = calculateEMA(tr, period);
+                    let smoothPlusDM = calculateEMA(plusDM, period);
+                    let smoothMinusDM = calculateEMA(minusDM, period);
+
+                    let plusDI = smoothTR.map((t, i) => t === 0 ? 0 : 100 * smoothPlusDM[i] / t);
+                    let minusDI = smoothTR.map((t, i) => t === 0 ? 0 : 100 * smoothMinusDM[i] / t);
+
+                    let dx = plusDI.map((p, i) => {
+                        let m = minusDI[i];
+                        return (p + m === 0) ? 0 : 100 * Math.abs(p - m) / (p + m);
                     });
 
-                    position = null;
+                    return calculateEMA(dx, period);
                 }
-            }
 
-            // Entry signals
-            if (!position) {
-                if (prevOsc < 0 && oscVal >= 0) {
-                    // LONG signal
-                    let sl, tp;
-                    if (slType === 'smart') {
-                        sl = currentPrice - (currentATR / currentPrice * 100 * slMultiplier * currentPrice / 100);
-                    } else if (slType === 'fixed') {
-                        sl = currentPrice * (1 - slPercent / 100);
-                    } else {
-                        sl = 0;
+                function calculateATR(highs, lows, closes, period = 14) {
+                    const tr = [0];
+                    for (let i = 1; i < closes.length; i++) {
+                        const h_l = highs[i] - lows[i];
+                        const h_cp = Math.abs(highs[i] - closes[i - 1]);
+                        const l_cp = Math.abs(lows[i] - closes[i - 1]);
+                        tr.push(Math.max(h_l, h_cp, l_cp));
                     }
-
-                    if (tpType === 'smart') {
-                        tp = currentPrice + (currentATR / currentPrice * 100 * tpMultiplier * currentPrice / 100);
-                    } else if (tpType === 'fixed') {
-                        tp = currentPrice * (1 + tpPercent / 100);
-                    } else {
-                        tp = 999999999;
-                    }
-
-                    position = { type: 'LONG', entry: currentPrice, sl, tp, entryTime: time };
-                } else if (prevOsc >= 0 && oscVal < 0) {
-                    // SHORT signal
-                    let sl, tp;
-                    if (slType === 'smart') {
-                        sl = currentPrice + (currentATR / currentPrice * 100 * slMultiplier * currentPrice / 100);
-                    } else if (slType === 'fixed') {
-                        sl = currentPrice * (1 + slPercent / 100);
-                    } else {
-                        sl = 999999999;
-                    }
-
-                    if (tpType === 'smart') {
-                        tp = currentPrice - (currentATR / currentPrice * 100 * tpMultiplier * currentPrice / 100);
-                    } else if (tpType === 'fixed') {
-                        tp = currentPrice * (1 - tpPercent / 100);
-                    } else {
-                        tp = 0;
-                    }
-
-                    position = { type: 'SHORT', entry: currentPrice, sl, tp, entryTime: time };
+                    return calculateEMA(tr, period);
                 }
-            }
-        }
 
-        // Display results
-        const profit = balance - capital;
-        const roi = (profit / capital) * 100;
-        const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
-
-        document.getElementById('finalCapital').textContent = `€${balance.toFixed(2)}`;
-        document.getElementById('profit').textContent = `€${profit.toFixed(2)}`;
-        document.getElementById('roi').textContent = `${roi.toFixed(2)}%`;
-        document.getElementById('totalTrades').textContent = trades.length;
-        document.getElementById('winRate').textContent = `${winRate.toFixed(2)}%`;
-
-        document.getElementById('stats').style.display = 'grid';
-
-        console.log('✅ Backtest completado');
-    } catch (error) {
-        console.error('❌ Error en backtest:', error);
-        alert('Error: ' + error.message);
-    } finally {
-        document.getElementById('loading').style.display = 'none';
-    }
-}
-
-// ==========================================
-// CONTROL FUNCTIONS
-// ==========================================
-function startTrading() {
-    console.log('▶ Start Trading clicked');
-    const mode = document.getElementById('tradingMode').value;
-    if (mode === 'backtest') {
-        runBacktest();
-    } else {
-        alert('Solo Backtest está disponible actualmente');
-    }
-}
-
-function stopTrading() {
-    console.log('⏹ Stop Trading');
-    alert('Trading detenido');
-}
-
-function openOptimizationModal() {
-    alert('🔧 Optimización próximamente');
-}
-
-function resetToDefaultParams() {
-    document.getElementById('fastEMA').value = '4';
-    document.getElementById('slowEMA').value = '65';
-    document.getElementById('biasMult').value = '1.062';
-    document.getElementById('leverage').value = '10';
-    document.getElementById('capital').value = '1000';
-    document.getElementById('stopLossType').value = 'smart';
-    document.getElementById('slMultiplier').value = '2';
-    document.getElementById('takeProfitType').value = 'fixed';
-    document.getElementById('takeProfit').value = '1.5';
-    alert('✅ Parámetros restaurados');
-}
-
-// ==========================================
-// INITIALIZATION
-// ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('✅ Bot inicializado');
-
-    // Attach event listeners
-    const startBtn = document.getElementById('startBtn');
-    if (startBtn) {
-        startBtn.addEventListener('click', startTrading);
-    }
-
-    const stopBtn = document.getElementById('stopBtn');
-    if (stopBtn) {
-        stopBtn.addEventListener('click', stopTrading);
-    }
-
-    const optimizeBtn = document.getElementById('optimizeBtn');
-    if (optimizeBtn) {
-        optimizeBtn.addEventListener('click', openOptimizationModal);
-    }
-
-    const resetBtn = document.getElementById('resetBtn');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', resetToDefaultParams);
-    }
-
-    // SL/TP type toggles
-    const slTypeSelect = document.getElementById('stopLossType');
-    if (slTypeSelect) {
-        slTypeSelect.addEventListener('change', (e) => {
-            const slMultGroup = document.getElementById('slMultiplierGroup');
-            const slPercGroup = document.getElementById('slPercentGroup');
-            if (slMultGroup && slPercGroup) {
-                slMultGroup.style.display = e.target.value === 'smart' ? 'block' : 'none';
-                slPercGroup.style.display = e.target.value === 'fixed' ? 'block' : 'none';
-            }
-        });
-    }
-
-    const tpTypeSelect = document.getElementById('takeProfitType');
-    if (tpTypeSelect) {
-        tpTypeSelect.addEventListener('change', (e) => {
-            const tpMultGroup = document.getElementById('tpMultiplierGroup');
-            const tpPercGroup = document.getElementById('tpPercentGroup');
-            if (tpMultGroup && tpPercGroup) {
-                tpMultGroup.style.display = e.target.value === 'smart' ? 'block' : 'none';
-                tpPercGroup.style.display = e.target.value === 'fixed' ? 'block' : 'none';
-            }
-        });
-    }
-});
-
-console.log('📊 Binance Trend Oscillator Bot - Script loaded successfully');
-
-
-
-// ==================== VISUALIZATION PATCH ====================
-// Add this code to enable charts and tables
-
-function renderPriceChart(data, trades) {
-    const canvas = document.getElementById('priceChart');
-    if (!canvas) { console.log('Canvas not found'); return; }
-
-    const ctx = canvas.getContext('2d');
-    if (window.priceChartInstance) window.priceChartInstance.destroy();
-
-    const labels = data.map(d => new Date(d.time));
-    const prices = data.map(d => d.close);
-
-    const buyPoints = [];
-    const sellPoints = [];
-
-    trades.forEach(trade => {
-        const entryIndex = data.findIndex(d => d.time >= new Date(trade.entryTime).getTime());
-        if (entryIndex !== -1) {
-            if (trade.type === 'LONG') {
-                buyPoints.push({ x: labels[entryIndex], y: trade.entry });
-            } else {
-                sellPoints.push({ x: labels[entryIndex], y: trade.entry });
-            }
-        }
-    });
-
-    window.priceChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: 'Precio',
-                    data: prices,
-                    borderColor: '#6366f1',
-                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                    borderWidth: 2,
-                    fill: true
-                },
-                {
-                    label: 'LONG',
-                    data: buyPoints,
-                    backgroundColor: '#10b981',
-                    pointRadius: 8,
-                    showLine: false,
-                    type: 'scatter'
-                },
-                {
-                    label: 'SHORT',
-                    data: sellPoints,
-                    backgroundColor: '#ef4444',
-                    pointRadius: 8,
-                    showLine: false,
-                    type: 'scatter'
+                // ==========================================
+                // DATA FETCHING
+                // ==========================================
+                async function fetchBinanceData(symbol, interval, limit = 500) {
+                    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+                    try {
+                        const response = await fetch(url);
+                        const data = await response.json();
+                        return data.map(candle => ({
+                            time: candle[0],
+                            open: parseFloat(candle[1]),
+                            high: parseFloat(candle[2]),
+                            low: parseFloat(candle[3]),
+                            close: parseFloat(candle[4]),
+                            volume: parseFloat(candle[5])
+                        }));
+                    } catch (error) {
+                        console.error('Error fetching Binance data:', error);
+                        throw error;
+                    }
                 }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: true } },
-            scales: {
-                x: { type: 'time', time: { unit: 'day' } },
-                y: { beginAtZero: false }
-            }
-        }
-    });
 
-    document.getElementById('priceChartContainer').style.display = 'block';
-    console.log('📊 Chart rendered with', trades.length, 'trades');
-}
+                // ==========================================
+                // BACKTESTING LOGIC
+                // ==========================================
+                async function runBacktest() {
+                    console.log('🚀 Iniciando Backtest Mejorado...');
+                    try {
+                        document.getElementById('loading').style.display = 'block';
+                        document.getElementById('stats').style.display = 'none';
 
-function renderTradesTable(trades) {
-    const container = document.getElementById('tradesTableContainer');
-    if (!container) { console.log('Table container not found'); return; }
+                        // Get parameters from UI
+                        const symbol = document.getElementById('symbol').value;
+                        const timeframe = document.getElementById('timeframe').value;
+                        const fastLen = parseInt(document.getElementById('fastEMA').value);
+                        const slowLen = parseInt(document.getElementById('slowEMA').value);
+                        const bias = parseFloat(document.getElementById('biasMult').value);
+                        const capital = parseFloat(document.getElementById('capital').value);
+                        const leverage = parseInt(document.getElementById('leverage').value);
 
-    let tbody = container.querySelector('tbody');
-    if (!tbody) {
-        const table = container.querySelector('table');
-        if (table) {
-            tbody = document.createElement('tbody');
-            table.appendChild(tbody);
-        } else {
-            console.log('Table not found');
-            return;
-        }
-    }
+                        // New filter parameters
+                        const rsiFilterEnabled = document.getElementById('rsiFilter').value === 'enabled';
+                        const adxFilterEnabled = document.getElementById('adxFilter').value === 'enabled';
+                        const adxMin = parseFloat(document.getElementById('adxThreshold').value);
+                        const volumeFilterEnabled = document.getElementById('volumeFilter').value === 'enabled';
+                        const trailingEnabled = document.getElementById('trailingStop').value === 'enabled';
+                        const trailingMult = parseFloat(document.getElementById('trailingMult').value);
+                        const cooldownLimit = parseInt(document.getElementById('cooldownBars').value);
+                        const oscThreshold = parseFloat(document.getElementById('oscThreshold').value);
 
-    tbody.innerHTML = '';
+                        const data = await fetchBinanceData(symbol, timeframe, 1500);
 
-    trades.slice().reverse().forEach((trade, index) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
+                        if (!data || data.length < Math.max(slowLen, 100)) {
+                            throw new Error('Datos insuficientes para los indicadores');
+                        }
+
+                        // Calculate indicators
+                        const prices = data.map(d => d.close);
+                        const highs = data.map(d => d.high);
+                        const lows = data.map(d => d.low);
+                        const volumes = data.map(d => d.volume);
+
+                        const oscillator = calculateOscillator(prices, fastLen, slowLen, bias);
+                        const atr = calculateATR(highs, lows, prices, 14);
+                        const rsi = calculateRSI(prices, 14);
+                        const adx = calculateADX(highs, lows, prices, 14);
+                        const volSMA = calculateSMA(volumes, 20);
+
+                        let balance = capital;
+                        let position = null;
+                        let trades = [];
+                        let wins = 0;
+                        let cooldownCounter = 0;
+
+                        const slType = document.getElementById('stopLossType').value;
+                        const slMultiplier = parseFloat(document.getElementById('slMultiplier').value);
+                        const slPercent = parseFloat(document.getElementById('stopLoss').value);
+                        const tpType = document.getElementById('takeProfitType').value;
+                        const tpMultiplier = parseFloat(document.getElementById('tpMultiplier').value);
+                        const tpPercent = parseFloat(document.getElementById('takeProfit').value);
+
+                        // Start simulation
+                        for (let i = Math.max(slowLen, 50); i < data.length; i++) {
+                            const currentPrice = data[i].close;
+                            const time = new Date(data[i].time);
+                            const oscVal = oscillator[i];
+                            const prevOsc = oscillator[i - 1];
+                            const currentATR = atr[i];
+
+                            if (cooldownCounter > 0) cooldownCounter--;
+
+                            // 1. CHECK EXIT CONDITIONS IF POSITION OPEN
+                            if (position) {
+                                let closeReason = null;
+
+                                // A. Static Stop Loss / Take Profit
+                                if (position.type === 'LONG') {
+                                    if (currentPrice <= position.sl) closeReason = 'Stop Loss';
+                                    if (currentPrice >= position.tp) closeReason = 'Take Profit';
+                                } else {
+                                    if (currentPrice >= position.sl) closeReason = 'Stop Loss';
+                                    if (currentPrice <= position.tp) closeReason = 'Take Profit';
+                                }
+
+                                // B. Trailing Stop Update
+                                if (!closeReason && trailingEnabled) {
+                                    if (position.type === 'LONG') {
+                                        let newTrailingSL = currentPrice - (currentATR * trailingMult);
+                                        if (newTrailingSL > position.sl) {
+                                            position.sl = newTrailingSL; // Move SL up
+                                        }
+                                    } else {
+                                        let newTrailingSL = currentPrice + (currentATR * trailingMult);
+                                        if (newTrailingSL < position.sl) {
+                                            position.sl = newTrailingSL; // Move SL down
+                                        }
+                                    }
+                                }
+
+                                // C. Signal reversal (Fast Exit)
+                                if (!closeReason) {
+                                    if (position.type === 'LONG' && oscVal < -oscThreshold) closeReason = 'Señal Contraria';
+                                    if (position.type === 'SHORT' && oscVal > oscThreshold) closeReason = 'Señal Contraria';
+                                }
+
+                                // CLOSE POSITION
+                                if (closeReason) {
+                                    const pnl = position.type === 'LONG'
+                                        ? ((currentPrice - position.entry) / position.entry) * 100 * leverage
+                                        : ((position.entry - currentPrice) / position.entry) * 100 * leverage;
+
+                                    // Apply commission (estim. 0.04% entry + 0.04% exit = 0.08% total)
+                                    const commission = 0.08 * leverage;
+                                    const netPnl = pnl - commission;
+
+                                    balance += (balance * netPnl / 100);
+                                    if (netPnl > 0) wins++;
+
+                                    trades.push({
+                                        type: position.type,
+                                        entry: position.entry,
+                                        exit: currentPrice,
+                                        entryTime: position.entryTime,
+                                        exitTime: time,
+                                        pnl: netPnl,
+                                        closeReason: closeReason
+                                    });
+
+                                    if (closeReason === 'Stop Loss') cooldownCounter = cooldownLimit;
+                                    position = null;
+                                }
+                            }
+
+                            // 2. CHECK ENTRY SIGNALS IF NO POSITION
+                            if (!position && cooldownCounter === 0) {
+                                // Filter A: ADX (Trend Strength)
+                                const isTrending = !adxFilterEnabled || adx[i] > adxMin;
+
+                                // Filter B: Volume
+                                const highVolume = !volumeFilterEnabled || volumes[i] > volSMA[i];
+
+                                // Filter C: RSI (Momentum)
+                                const longRSI = !rsiFilterEnabled || rsi[i] > 50;
+                                const shortRSI = !rsiFilterEnabled || rsi[i] < 50;
+
+                                // Signal Detection
+                                if (prevOsc < oscThreshold && oscVal >= oscThreshold) {
+                                    // Potential LONG
+                                    if (isTrending && highVolume && longRSI) {
+                                        let sl, tp;
+                                        if (slType === 'smart') {
+                                            sl = currentPrice - (currentATR * slMultiplier);
+                                        } else if (slType === 'fixed') {
+                                            sl = currentPrice * (1 - slPercent / 100);
+                                        } else { sl = 0; }
+
+                                        if (tpType === 'smart') {
+                                            tp = currentPrice + (currentATR * tpMultiplier);
+                                        } else if (tpType === 'fixed') {
+                                            tp = currentPrice * (1 + tpPercent / 100);
+                                        } else { tp = 999999999; }
+
+                                        position = { type: 'LONG', entry: currentPrice, sl, tp, entryTime: time };
+                                    }
+                                } else if (prevOsc > -oscThreshold && oscVal <= -oscThreshold) {
+                                    // Potential SHORT
+                                    if (isTrending && highVolume && shortRSI) {
+                                        let sl, tp;
+                                        if (slType === 'smart') {
+                                            sl = currentPrice + (currentATR * slMultiplier);
+                                        } else if (slType === 'fixed') {
+                                            sl = currentPrice * (1 + slPercent / 100);
+                                        } else { sl = 999999999; }
+
+                                        if (tpType === 'smart') {
+                                            tp = currentPrice - (currentATR * tpMultiplier);
+                                        } else if (tpType === 'fixed') {
+                                            tp = currentPrice * (1 - tpPercent / 100);
+                                        } else { tp = 0; }
+
+                                        position = { type: 'SHORT', entry: currentPrice, sl, tp, entryTime: time };
+                                    }
+                                }
+                            }
+                        }
+
+                        // Display results
+                        const profit = balance - capital;
+                        const roi = (profit / capital) * 100;
+                        const winRate = trades.length > 0 ? (wins / trades.length) * 100 : 0;
+
+                        document.getElementById('finalCapital').textContent = `€${balance.toFixed(2)}`;
+                        document.getElementById('profit').textContent = `€${profit.toFixed(2)}`;
+                        document.getElementById('roi').textContent = `${roi.toFixed(2)}%`;
+                        document.getElementById('totalTrades').textContent = trades.length;
+                        document.getElementById('winRate').textContent = `${winRate.toFixed(2)}%`;
+
+                        // Data for visualization
+                        window.lastBacktestData = data;
+                        window.lastBacktestTrades = trades;
+
+                        document.getElementById('stats').style.display = 'grid';
+                        console.log('✅ Backtest completado');
+
+                        // Trigger render manually if patch is active
+                        if (typeof renderPriceChart === 'function') {
+                            renderPriceChart(data, trades);
+                            renderTradesTable(trades);
+                        }
+
+                    } catch (error) {
+                        console.error('❌ Error en backtest:', error);
+                        alert('Error: ' + error.message);
+                    } finally {
+                        document.getElementById('loading').style.display = 'none';
+                    }
+                }
+
+                // ==========================================
+                // CONTROL FUNCTIONS
+                // ==========================================
+                function startTrading() {
+                    console.log('▶ Start Trading clicked');
+                    const mode = document.getElementById('tradingMode').value;
+                    if (mode === 'backtest') {
+                        runBacktest();
+                    } else if (mode === 'paper') { startPaperTrading(); } else {
+                        alert('Solo Backtest está disponible actualmente');
+                    }
+                }
+
+                function stopTrading() {
+                    if (typeof paperTradingActive !== 'undefined' && paperTradingActive) stopPaperTrading();
+                    console.log('⏹ Stop Trading');
+                    alert('Trading detenido');
+                }
+
+                function openOptimizationModal() {
+                    alert('🔧 Optimización próximamente');
+                }
+
+                function resetToDefaultParams() {
+                    document.getElementById('fastEMA').value = '8';
+                    document.getElementById('slowEMA').value = '65';
+                    document.getElementById('biasMult').value = '1.0';
+                    document.getElementById('leverage').value = '10';
+                    document.getElementById('capital').value = '1000';
+                    document.getElementById('stopLossType').value = 'smart';
+                    document.getElementById('slMultiplier').value = '2.5';
+                    document.getElementById('takeProfitType').value = 'smart';
+                    document.getElementById('tpMultiplier').value = '3.5';
+
+                    // Reset new filters
+                    document.getElementById('rsiFilter').value = 'enabled';
+                    document.getElementById('adxFilter').value = 'enabled';
+                    document.getElementById('volumeFilter').value = 'enabled';
+                    document.getElementById('trailingStop').value = 'enabled';
+                    document.getElementById('cooldownBars').value = '2';
+                    document.getElementById('oscThreshold').value = '0.05';
+
+                    alert('✅ Parámetros restaurados a configuración óptima recomendada');
+                }
+
+                // ==========================================
+                // INITIALIZATION
+                // ==========================================
+                document.addEventListener('DOMContentLoaded', () => {
+                    console.log('✅ Bot inicializado');
+
+                    // Attach event listeners
+                    const startBtn = document.getElementById('startBtn');
+                    if (startBtn) {
+                        startBtn.addEventListener('click', startTrading);
+                    }
+
+                    const stopBtn = document.getElementById('stopBtn');
+                    if (stopBtn) {
+                        stopBtn.addEventListener('click', stopTrading);
+                    }
+
+                    const optimizeBtn = document.getElementById('optimizeBtn');
+                    if (optimizeBtn) {
+                        optimizeBtn.addEventListener('click', openOptimizationModal);
+                    }
+
+                    const resetBtn = document.getElementById('resetBtn');
+                    if (resetBtn) {
+                        resetBtn.addEventListener('click', resetToDefaultParams);
+                    }
+
+                    // SL/TP type toggles
+                    const slTypeSelect = document.getElementById('stopLossType');
+                    if (slTypeSelect) {
+                        slTypeSelect.addEventListener('change', (e) => {
+                            const slMultGroup = document.getElementById('slMultiplierGroup');
+                            const slPercGroup = document.getElementById('slPercentGroup');
+                            if (slMultGroup && slPercGroup) {
+                                slMultGroup.style.display = e.target.value === 'smart' ? 'block' : 'none';
+                                slPercGroup.style.display = e.target.value === 'fixed' ? 'block' : 'none';
+                            }
+                        });
+                    }
+
+                    const tpTypeSelect = document.getElementById('takeProfitType');
+                    if (tpTypeSelect) {
+                        tpTypeSelect.addEventListener('change', (e) => {
+                            const tpMultGroup = document.getElementById('tpMultiplierGroup');
+                            const tpPercGroup = document.getElementById('tpPercentGroup');
+                            if (tpMultGroup && tpPercGroup) {
+                                tpMultGroup.style.display = e.target.value === 'smart' ? 'block' : 'none';
+                                tpPercGroup.style.display = e.target.value === 'fixed' ? 'block' : 'none';
+                            }
+                        });
+                    }
+
+                    // New Filter toggles
+                    const adxFilterSelect = document.getElementById('adxFilter');
+                    if (adxFilterSelect) {
+                        adxFilterSelect.addEventListener('change', (e) => {
+                            const group = document.getElementById('adxThresholdGroup');
+                            if (group) group.style.display = e.target.value === 'enabled' ? 'block' : 'none';
+                        });
+                    }
+
+                    const trailingStopSelect = document.getElementById('trailingStop');
+                    if (trailingStopSelect) {
+                        trailingStopSelect.addEventListener('change', (e) => {
+                            const group = document.getElementById('trailingMultGroup');
+                            if (group) group.style.display = e.target.value === 'enabled' ? 'block' : 'none';
+                        });
+                    }
+                });
+
+                console.log('📊 Binance Trend Oscillator Bot - Script loaded successfully');
+
+
+
+                // ==================== VISUALIZATION PATCH ====================
+                // Add this code to enable charts and tables
+
+                function renderPriceChart(data, trades) {
+                    const canvas = document.getElementById('priceChart');
+                    if (!canvas) { console.log('Canvas not found'); return; }
+
+                    const ctx = canvas.getContext('2d');
+                    if (window.priceChartInstance) window.priceChartInstance.destroy();
+
+                    const labels = data.map(d => new Date(d.time));
+                    const prices = data.map(d => d.close);
+
+                    const buyPoints = [];
+                    const sellPoints = [];
+
+                    trades.forEach(trade => {
+                        const entryIndex = data.findIndex(d => d.time >= new Date(trade.entryTime).getTime());
+                        if (entryIndex !== -1) {
+                            if (trade.type === 'LONG') {
+                                buyPoints.push({ x: labels[entryIndex], y: trade.entry });
+                            } else if (trade.type === 'SHORT') {
+                                sellPoints.push({ x: labels[entryIndex], y: trade.entry });
+                            }
+                        }
+                    });
+
+                    window.priceChartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Precio',
+                                    data: prices,
+                                    borderColor: '#6366f1',
+                                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                                    borderWidth: 2,
+                                    fill: true
+                                },
+                                {
+                                    label: 'LONG',
+                                    data: buyPoints,
+                                    backgroundColor: '#10b981',
+                                    pointRadius: 8,
+                                    showLine: false,
+                                    type: 'scatter'
+                                },
+                                {
+                                    label: 'SHORT',
+                                    data: sellPoints,
+                                    backgroundColor: '#ef4444',
+                                    pointRadius: 8,
+                                    showLine: false,
+                                    type: 'scatter'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: true } },
+                            scales: {
+                                x: { type: 'time', time: { unit: 'day' } },
+                                y: { beginAtZero: false }
+                            }
+                        }
+                    });
+
+                    document.getElementById('priceChartContainer').style.display = 'block';
+                    console.log('📊 Chart rendered with', trades.length, 'trades');
+                }
+
+                function renderTradesTable(trades) {
+                    const container = document.getElementById('tradesTableContainer');
+                    if (!container) { console.log('Table container not found'); return; }
+
+                    let tbody = container.querySelector('tbody');
+                    if (!tbody) {
+                        const table = container.querySelector('table');
+                        if (table) {
+                            tbody = document.createElement('tbody');
+                            table.appendChild(tbody);
+                        } else if (mode === paper) { startPaperTrading(); } else {
+                            console.log('Table not found');
+                            return;
+                        }
+                    }
+
+                    tbody.innerHTML = '';
+
+                    trades.slice().reverse().forEach((trade, index) => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
             <td>${trades.length - index}</td>
             <td>${new Date(trade.entryTime).toLocaleString('es-ES')}</td>
             <td>${new Date(trade.exitTime).toLocaleString('es-ES')}</td>
@@ -2421,36 +2640,36 @@ function renderTradesTable(trades) {
             <td>${trade.closeReason}</td>
             <td class="${trade.pnl >= 0 ? 'positive' : 'negative'}">${trade.pnl.toFixed(2)}%</td>
         `;
-        tbody.appendChild(row);
-    });
+                        tbody.appendChild(row);
+                    });
 
-    container.style.display = 'block';
-    console.log('📋 Table rendered with', trades.length, 'trades');
-}
-
-// Patch runBacktest to call visualizations
-const originalConsoleLog = console.log;
-console.log = function (...args) {
-    if (args[0] === '✅ Backtest completado') {
-        // Hook into the completion message
-        setTimeout(() => {
-            const statsDiv = document.getElementById('stats');
-            if (statsDiv && statsDiv.style.display === 'grid') {
-                console.log('🎨 Attempting to render visualizations...');
-                // Try to get data from global scope if available
-                if (window.lastBacktestData && window.lastBacktestTrades) {
-                    renderPriceChart(window.lastBacktestData, window.lastBacktestTrades);
-                    renderTradesTable(window.lastBacktestTrades);
+                    container.style.display = 'block';
+                    console.log('📋 Table rendered with', trades.length, 'trades');
                 }
-            }
-        }, 100);
-    }
-    originalConsoleLog.apply(console, args);
-};
 
-console.log('🎨 Visualization patch loaded');
+                // Patch runBacktest to call visualizations
+                const originalConsoleLog = console.log;
+                console.log = function (...args) {
+                    if (args[0] === '✅ Backtest completado') {
+                        // Hook into the completion message
+                        setTimeout(() => {
+                            const statsDiv = document.getElementById('stats');
+                            if (statsDiv && statsDiv.style.display === 'grid') {
+                                console.log('🎨 Attempting to render visualizations...');
+                                // Try to get data from global scope if available
+                                if (window.lastBacktestData && window.lastBacktestTrades) {
+                                    renderPriceChart(window.lastBacktestData, window.lastBacktestTrades);
+                                    renderTradesTable(window.lastBacktestTrades);
+                                }
+                            }
+                        }, 100);
+                    }
+                    originalConsoleLog.apply(console, args);
+                };
 
-</script>
+                console.log('🎨 Visualization patch loaded');
+
+    </script>
 </body>
 
 </html>
